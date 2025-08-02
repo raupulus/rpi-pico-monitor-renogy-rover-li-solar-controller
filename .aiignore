@@ -1,2 +1,5 @@
 src/.env
+src/.env.py
+src/env.py
 LICENSE
+/tmp

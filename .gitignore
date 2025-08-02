@@ -106,10 +106,12 @@ celerybeat.pid
 
 # Environments
 src/.env
+src/env.py
 .env.py
 env.py
 .venv
 src/.env/
+src/env/
 venv/
 ENV/
 env.bak/
@@ -143,3 +145,6 @@ dmypy.json
 
 # Systems
 .DS_Store
+
+# Others
+/tmp
