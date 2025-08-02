@@ -168,11 +168,17 @@ def loop():
         password=env.WIFI_PASSWORD if hasattr(env, 'WIFI_PASSWORD') else None,
         debug=DEBUG,
         country=env.WIFI_COUNTRY if hasattr(env, 'WIFI_COUNTRY') else 'ES',
-        alternatives_ap=env.WIFI_ALTERNATIVES if hasattr(env, 'WIFI_ALTERNATIVES') else None
+        alternatives_ap=env.WIFI_ALTERNATIVES if hasattr(env, 'WIFI_ALTERNATIVES') else None,
+        led_power_pin=env.LED_POWER_PIN if hasattr(env, 'LED_POWER_PIN') else None,
+        led_upload_pin=env.LED_UPLOAD_PIN if hasattr(env, 'LED_UPLOAD_PIN') else None,
+        led_cycle_pin=env.LED_CYCLE_PIN if hasattr(env, 'LED_CYCLE_PIN') else None
     )
     
-    # Enciendo el LED para indicar que el programa está ejecutándose
+    # Enciendo el LED integrado para indicar que el programa está ejecutándose
     rpi_pico.led_on()
+    
+    # Enciendo el LED de encendido externo si está configurado
+    rpi_pico.led_power_on()
     
     # Sincronizo la hora si el WiFi está conectado
     if rpi_pico.wifi_is_connected():
@@ -197,6 +203,7 @@ def loop():
             controller=rpi_pico,
             url=HOME_ASSISTANT_URL,
             token=HOME_ASSISTANT_TOKEN,
+            device_id=DEVICE_ID,
             debug=DEBUG
         )
     
@@ -213,6 +220,9 @@ def loop():
             if DEBUG:
                 print("Iniciando ciclo de recolección de datos...")
             
+            # Enciendo el LED de ciclo para indicar que estoy leyendo datos
+            rpi_pico.led_cycle_on()
+            
             # Leo datos del controlador solar
             datas = solar_controller.get_all_datas()
             info = solar_controller.get_all_controller_info_datas()
@@ -227,6 +237,9 @@ def loop():
             params.update(historical_today)
             params.update(historical)
             
+            # Apago el LED de ciclo una vez terminada la lectura
+            rpi_pico.led_cycle_off()
+            
             if DEBUG:
                 print('Datos recolectados del controlador solar')
             
@@ -235,7 +248,13 @@ def loop():
                 if DEBUG:
                     print("Subiendo datos a la API...")
                 
+                # Enciendo el LED de subida durante la comunicación con la API
+                rpi_pico.led_upload_on()
+                
                 success = api.send_to_api(params)
+                
+                # Apago el LED de subida después de la comunicación con la API
+                rpi_pico.led_upload_off()
                 
                 if DEBUG:
                     if success:
@@ -248,22 +267,52 @@ def loop():
                 if DEBUG:
                     print("Subiendo datos a Home Assistant...")
                 
+                # Enciendo el LED de subida durante la comunicación con Home Assistant
+                rpi_pico.led_upload_on()
+                
                 # Primero verifico si Home Assistant es accesible
                 if home_assistant.check_connection():
-                    # Actualizo datos del controlador solar
-                    success = home_assistant.update_solar_controller_data(params)
+                    # Primero creo una entidad dedicada para el dispositivo
+                    device_created = home_assistant.create_device_entity()
                     
-                    # Actualizo sensores del microcontrolador
-                    home_assistant.update_microcontroller_sensors()
+                    # Verifico si el dispositivo existe en Home Assistant
+                    device_exists = home_assistant.verify_device_exists()
                     
                     if DEBUG:
-                        if success:
-                            print("Datos subidos a Home Assistant correctamente")
+                        if device_exists:
+                            print("El dispositivo 'Controlador Solar Renogy Rover Li' existe en Home Assistant")
                         else:
-                            print("Error al subir datos a Home Assistant")
+                            print("ADVERTENCIA: El dispositivo 'Controlador Solar Renogy Rover Li' NO existe en Home Assistant")
+                            print("Intentando crear el dispositivo nuevamente...")
+                            # Intento crear el dispositivo nuevamente si no existe
+                            device_created = home_assistant.create_device_entity()
+                            # Verifico nuevamente si el dispositivo existe
+                            device_exists = home_assistant.verify_device_exists()
+                            if not device_exists:
+                                print("ERROR: No se pudo crear el dispositivo en Home Assistant")
+                    
+                    # Solo actualizo los sensores si el dispositivo existe
+                    if device_exists:
+                        # Actualizo datos del controlador solar
+                        success = home_assistant.update_solar_controller_data(params)
+                        
+                        # Actualizo sensores del microcontrolador
+                        home_assistant.update_microcontroller_sensors()
+                        
+                        if DEBUG:
+                            if success:
+                                print("Datos subidos a Home Assistant correctamente")
+                            else:
+                                print("Error al subir datos a Home Assistant")
+                    else:
+                        if DEBUG:
+                            print("No se actualizaron los sensores porque el dispositivo no existe en Home Assistant")
                 else:
                     if DEBUG:
                         print("Home Assistant no es accesible")
+                
+                # Apago el LED de subida después de la comunicación con Home Assistant
+                rpi_pico.led_upload_off()
             
             if DEBUG:
                 print(f"Ciclo completado correctamente")
@@ -271,12 +320,16 @@ def loop():
             # Ejecuto la recolección de basura
             collect_garbage()
             
-            # Parpadeo el LED para indicar un ciclo exitoso
+            # Parpadeo el LED integrado para indicar un ciclo exitoso
             rpi_pico.led_off()
             time.sleep(0.2)
             rpi_pico.led_on()
             time.sleep(0.2)
             rpi_pico.led_off()
+            
+            # Aseguro que los LEDs de ciclo y subida estén apagados antes de dormir
+            rpi_pico.led_cycle_off()
+            rpi_pico.led_upload_off()
             
             # Pauso durante el tiempo configurado en SLEEP_TIME
             if DEBUG:
@@ -285,8 +338,11 @@ def loop():
             # Uso pausa simple en lugar de light_sleep
             sleep_pause(SLEEP_TIME)
             
-            # Enciendo el LED nuevamente al despertar
+            # Enciendo el LED integrado nuevamente al despertar
             rpi_pico.led_on()
+            
+            # Aseguro que el LED de encendido siga encendido después de despertar
+            rpi_pico.led_power_on()
             
         except Exception as e:
             if DEBUG:
@@ -297,7 +353,11 @@ def loop():
                 if hasattr(sys, 'print_exception'):
                     sys.print_exception(e)
             
-            # Parpadeo el LED rápidamente para indicar error
+            # Aseguro que los LEDs de ciclo y subida estén apagados
+            rpi_pico.led_cycle_off()
+            rpi_pico.led_upload_off()
+            
+            # Parpadeo el LED integrado rápidamente para indicar error
             for _ in range(5):
                 rpi_pico.led_on()
                 time.sleep(0.1)
@@ -309,6 +369,9 @@ def loop():
             
             # Uso pausa simple en lugar de light_sleep, incluso después de errores
             sleep_pause(SLEEP_TIME)
+            
+            # Aseguro que el LED de encendido siga encendido después del error
+            rpi_pico.led_power_on()
 
 def main():
     """

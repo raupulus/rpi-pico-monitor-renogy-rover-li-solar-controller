@@ -58,9 +58,15 @@ class RpiPico:
 
     # Almaceno batería externa si la configuramos
     external_battery = None
+    
+    # LEDs externos
+    led_power = None
+    led_upload = None
+    led_cycle = None
 
     def __init__ (self, ssid=None, password=None, debug=False, country="ES",
-                  alternatives_ap=None, hostname="Rpi-Pico-W"):
+                  alternatives_ap=None, hostname="Rpi-Pico-W",
+                  led_power_pin=None, led_upload_pin=None, led_cycle_pin=None):
         """
         Constructor de la clase para Raspberry Pi Pico W.
 
@@ -71,6 +77,9 @@ class RpiPico:
             country (str): Código del país. Por defecto 'ES'.
             alternatives_ap (tuple): Puedes pasar una tupla con redes adicionales.
             hostname (str): Nombre del dispositivo en la red.
+            led_power_pin (int): Número de pin GPIO para LED de encendido. Por defecto None.
+            led_upload_pin (int): Número de pin GPIO para LED de subida a API/Home Assistant. Por defecto None.
+            led_cycle_pin (int): Número de pin GPIO para LED de trabajo del ciclo. Por defecto None.
         """
         self.locked = True
         self.DEBUG = debug
@@ -85,6 +94,37 @@ class RpiPico:
 
         # Defino Pin para el LED integrado
         self.LED_INTEGRATED = Pin("LED", Pin.OUT)
+        
+        # Inicializo los LEDs externos si se proporcionan los pines
+        if led_power_pin is not None:
+            try:
+                self.led_power = Pin(led_power_pin, Pin.OUT)
+                if self.DEBUG:
+                    print(f"LED de encendido inicializado en pin {led_power_pin}")
+            except Exception as e:
+                if self.DEBUG:
+                    print(f"Error al inicializar LED de encendido: {e}")
+                self.led_power = None
+                
+        if led_upload_pin is not None:
+            try:
+                self.led_upload = Pin(led_upload_pin, Pin.OUT)
+                if self.DEBUG:
+                    print(f"LED de subida inicializado en pin {led_upload_pin}")
+            except Exception as e:
+                if self.DEBUG:
+                    print(f"Error al inicializar LED de subida: {e}")
+                self.led_upload = None
+                
+        if led_cycle_pin is not None:
+            try:
+                self.led_cycle = Pin(led_cycle_pin, Pin.OUT)
+                if self.DEBUG:
+                    print(f"LED de ciclo inicializado en pin {led_cycle_pin}")
+            except Exception as e:
+                if self.DEBUG:
+                    print(f"Error al inicializar LED de ciclo: {e}")
+                self.led_cycle = None
 
         # Factor de conversión de 16 bits para corregir ADC.
         self.adc_conversion_factor = self.voltage_working / 65535
@@ -319,6 +359,66 @@ class RpiPico:
         :return: None
         """
         self.LED_INTEGRATED.off()
+        
+    def led_power_on(self) -> None:
+        """
+        Enciende el LED de encendido externo.
+        Si el LED no está configurado, no hace nada.
+
+        :return: None
+        """
+        if self.led_power:
+            self.led_power.on()
+            
+    def led_power_off(self) -> None:
+        """
+        Apaga el LED de encendido externo.
+        Si el LED no está configurado, no hace nada.
+
+        :return: None
+        """
+        if self.led_power:
+            self.led_power.off()
+            
+    def led_upload_on(self) -> None:
+        """
+        Enciende el LED de subida externo.
+        Si el LED no está configurado, no hace nada.
+
+        :return: None
+        """
+        if self.led_upload:
+            self.led_upload.on()
+            
+    def led_upload_off(self) -> None:
+        """
+        Apaga el LED de subida externo.
+        Si el LED no está configurado, no hace nada.
+
+        :return: None
+        """
+        if self.led_upload:
+            self.led_upload.off()
+            
+    def led_cycle_on(self) -> None:
+        """
+        Enciende el LED de ciclo externo.
+        Si el LED no está configurado, no hace nada.
+
+        :return: None
+        """
+        if self.led_cycle:
+            self.led_cycle.on()
+            
+    def led_cycle_off(self) -> None:
+        """
+        Apaga el LED de ciclo externo.
+        Si el LED no está configurado, no hace nada.
+
+        :return: None
+        """
+        if self.led_cycle:
+            self.led_cycle.off()
 
     def get_cpu_temperature_stats (self) -> dict:
         """
