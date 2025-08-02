@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
 # @author     Raúl Caro Pastorino
@@ -9,14 +9,15 @@
 # @twitter    https://twitter.com/raupulus
 # @telegram   https://t.me/raupulus_diffusion
 
-# Create Date: 2022
-# Project Name:
-# Description:
+# Create Date: 2022/2025
+# Project Name: Raspberry Pi Pico Monitor Renogy Rover Li Solar Controller
+# Description: Class for interfacing with Renogy Rover Li solar controller
+#              using MicroPython on Raspberry Pi Pico.
 #
-# Dependencies:
+# Dependencies: MicroPython
 #
-# Revision 0.01 - File Created
-# Additional Comments:
+# Revision 0.02 - Adapted for Raspberry Pi Pico with MicroPython
+# Additional Comments: Fixed dictionary unpacking for MicroPython compatibility
 
 # @copyright  Copyright © 2022 Raúl Caro Pastorino
 # @license    https://wwww.gnu.org/licenses/gpl.txt
@@ -38,34 +39,10 @@
 
 # Guía de estilos aplicada: PEP8
 
-#######################################
-# #           Descripción           # #
-#######################################
-## Modelo que representa a un controlador de placas solares Renogy Rover Li
-##
+from Models.SerialConnection import SerialConnection
+from time import sleep, localtime
 
-#######################################
-# #       Importar Librerías        # #
-#######################################
-
-from Models.SolarControllers.AbstractModel import AbstractModel
-from src.Models.SerialConnection import SerialConnection
-import time
-import datetime
-
-#######################################
-# #             Variables           # #
-#######################################
-
-sleep = time.sleep
-
-
-#######################################
-# #            FUNCIONES            # #
-#######################################
-
-
-class RenogyRoverLi(AbstractModel):
+class RenogyRoverLi:
     serial = None
     DEBUG = False
 
@@ -92,6 +69,14 @@ class RenogyRoverLi(AbstractModel):
         5: 'floating',
         6: 'current limiting'
     }
+
+    # Atributos para almacenar datos estáticos en caché
+    _cached_version = None
+    _cached_system_voltage_current = None
+    _cached_hardware = None
+    _cached_battery_type = None
+    _cached_serial_number = None
+    _cached_nominal_battery_capacity = None
 
     tablename = 'renogy_rover_li'
 
@@ -288,14 +273,89 @@ class RenogyRoverLi(AbstractModel):
         },
     }
 
-    def __init__ (self, device_id=0, port='/dev/ttyUSB0', debug=False):
+    def __init__ (self, device_id=0, tx_pin=0, rx_pin=1, debug=False):
+        """
+        Inicializa el controlador RenogyRoverLi.
+        
+        Args:
+            device_id (int): ID del dispositivo para identificación
+            tx_pin (int): Número de pin TX (GPIO) para comunicación UART
+            rx_pin (int): Número de pin RX (GPIO) para comunicación UART
+            debug (bool): Habilitar salida de depuración
+        """
         self.device_id = device_id
         self.DEBUG = debug
-        self.serial = SerialConnection(port=port, debug=debug, baudrate=9600,
-                                       method='rtu', timeout=0.5)
+        self.serial = SerialConnection(tx_pin=tx_pin, rx_pin=rx_pin, debug=debug, 
+                                      baudrate=9600, timeout=0.5)
 
         if (debug):
             print('Modelo RenogyRoverLi instanciado')
+            
+        # Intento inicializar los datos estáticos en caché
+        self._initialize_static_data()
+        
+    def _initialize_static_data(self):
+        """
+        Inicializa los datos estáticos en caché.
+        Este método intenta leer todos los datos estáticos una sola vez durante la inicialización.
+        Si hay algún error, los datos se leerán cuando se soliciten por primera vez.
+        """
+        if self.DEBUG:
+            print('Inicializando datos estáticos en caché')
+            
+        try:
+            # Intento leer la versión del software
+            self._cached_version = self.get_version()
+            if self.DEBUG and self._cached_version:
+                print(f'Versión del software en caché: {self._cached_version}')
+        except Exception as e:
+            if self.DEBUG:
+                print(f'Error al inicializar versión del software: {e}')
+                
+        try:
+            # Intento leer la versión del hardware
+            self._cached_hardware = self.get_hardware()
+            if self.DEBUG and self._cached_hardware:
+                print(f'Versión del hardware en caché: {self._cached_hardware}')
+        except Exception as e:
+            if self.DEBUG:
+                print(f'Error al inicializar versión del hardware: {e}')
+                
+        try:
+            # Intento leer el número de serie
+            self._cached_serial_number = self.get_serial_number()
+            if self.DEBUG and self._cached_serial_number:
+                print(f'Número de serie en caché: {self._cached_serial_number}')
+        except Exception as e:
+            if self.DEBUG:
+                print(f'Error al inicializar número de serie: {e}')
+                
+        try:
+            # Intento leer el voltaje del sistema
+            self._cached_system_voltage_current = self.get_system_voltage_current()
+            if self.DEBUG and self._cached_system_voltage_current:
+                print(f'Voltaje del sistema en caché: {self._cached_system_voltage_current}')
+        except Exception as e:
+            if self.DEBUG:
+                print(f'Error al inicializar voltaje del sistema: {e}')
+                
+        try:
+            # Intento leer el tipo de batería
+            self._cached_battery_type = self.get_battery_type()
+            if self.DEBUG and self._cached_battery_type:
+                print(f'Tipo de batería en caché: {self._cached_battery_type}')
+        except Exception as e:
+            if self.DEBUG:
+                print(f'Error al inicializar tipo de batería: {e}')
+                
+        try:
+            # Intento leer la capacidad nominal de la batería
+            self._cached_nominal_battery_capacity = self.get_nominal_battery_capacity()
+            if self.DEBUG and self._cached_nominal_battery_capacity:
+                print(f'Capacidad nominal de la batería en caché: {self._cached_nominal_battery_capacity}')
+        except Exception as e:
+            if self.DEBUG:
+                print(f'Error al inicializar capacidad nominal de la batería: {e}')
 
     def get_system_voltage_current (self):
         """
@@ -303,6 +363,13 @@ class RenogyRoverLi(AbstractModel):
         0x000A
         [1] → 8 higher bits: max. voltage supported by the system (V)
         """
+        # Si ya tenemos el valor en caché, lo devolvemos directamente
+        if self._cached_system_voltage_current is not None:
+            if self.DEBUG:
+                print('Devolviendo voltaje actual de sistema desde caché')
+            return self._cached_system_voltage_current
+            
+        # Si no está en caché, lo leemos del controlador
         scheme = self.sectionMap['system_voltage_current']
 
         while True:
@@ -315,8 +382,10 @@ class RenogyRoverLi(AbstractModel):
                                                      scheme['type'])
 
                 voltage = response[0] >> 8
-
-                return voltage
+                
+                # Guardamos el resultado en caché
+                self._cached_system_voltage_current = voltage
+                return self._cached_system_voltage_current
             except Exception as e:
                 if self.DEBUG:
                     print('Error al leer voltaje actual de sistema')
@@ -362,6 +431,13 @@ class RenogyRoverLi(AbstractModel):
 
         :return:
         """
+        # Si ya tenemos el valor en caché, lo devolvemos directamente
+        if self._cached_hardware is not None:
+            if self.DEBUG:
+                print('Devolviendo hardware desde caché')
+            return self._cached_hardware
+            
+        # Si no está en caché, lo leemos del controlador
         if self.DEBUG:
             print('Leyendo hardware')
 
@@ -375,7 +451,9 @@ class RenogyRoverLi(AbstractModel):
             minor = response[3] >> 8
             patch = response[3] & 0x00ff
 
-            return 'V{}.{}.{}'.format(major, minor, patch)
+            # Guardamos el resultado en caché
+            self._cached_hardware = 'V{}.{}.{}'.format(major, minor, patch)
+            return self._cached_hardware
 
         return None
 
@@ -384,6 +462,13 @@ class RenogyRoverLi(AbstractModel):
         Devuelve la información sobre la versión del software
         0x0014 y 0x0015 Software version 4 bytes
         """
+        # Si ya tenemos el valor en caché, lo devolvemos directamente
+        if self._cached_version is not None:
+            if self.DEBUG:
+                print('Devolviendo versión desde caché')
+            return self._cached_version
+            
+        # Si no está en caché, lo leemos del controlador
         if self.DEBUG:
             print('Leyendo versión')
 
@@ -397,7 +482,9 @@ class RenogyRoverLi(AbstractModel):
             minor = response[1] >> 8
             patch = response[1] & 0x00ff
 
-            return 'V{}.{}.{}'.format(major, minor, patch)
+            # Guardamos el resultado en caché
+            self._cached_version = 'V{}.{}.{}'.format(major, minor, patch)
+            return self._cached_version
 
         return None
 
@@ -406,6 +493,13 @@ class RenogyRoverLi(AbstractModel):
         Devuelve el número de serie del controlador
         0x0018 y 0x0019 Serial number 4 bytes
         """
+        # Si ya tenemos el valor en caché, lo devolvemos directamente
+        if self._cached_serial_number is not None:
+            if self.DEBUG:
+                print('Devolviendo número de serie desde caché')
+            return self._cached_serial_number
+            
+        # Si no está en caché, lo leemos del controlador
         if self.DEBUG:
             print('Leyendo número de serie')
 
@@ -414,7 +508,12 @@ class RenogyRoverLi(AbstractModel):
         response = self.serial.read_register(scheme['address'], scheme['bytes'],
                                              scheme['type'])
 
-        return '{}{}'.format(response[0], response[1]) if response else None
+        if response:
+            # Guardamos el resultado en caché
+            self._cached_serial_number = '{}{}'.format(response[0], response[1])
+            return self._cached_serial_number
+            
+        return None
 
     def get_battery_percentage (self):
         """
@@ -950,6 +1049,13 @@ class RenogyRoverLi(AbstractModel):
         Devuelve la capacidad nominal de la batería.
         0xE002 Nominal battery capacity - 2 byte (Ah)
         """
+        # Si ya tenemos el valor en caché, lo devolvemos directamente
+        if self._cached_nominal_battery_capacity is not None:
+            if self.DEBUG:
+                print('Devolviendo capacidad nominal de la batería desde caché')
+            return self._cached_nominal_battery_capacity
+            
+        # Si no está en caché, lo leemos del controlador
         scheme = self.sectionMap['nominal_battery_capacity']
 
         if self.DEBUG:
@@ -958,13 +1064,25 @@ class RenogyRoverLi(AbstractModel):
         response = self.serial.read_register(scheme['address'], scheme['bytes'],
                                              scheme['type'])
 
-        return response[0] if response else None
+        if response:
+            # Guardamos el resultado en caché
+            self._cached_nominal_battery_capacity = response[0]
+            return self._cached_nominal_battery_capacity
+            
+        return None
 
     def get_battery_type (self):
         """
         Devuelve el tipo de batería.
         0xE004 Battery type - 2 byte (string from self.BATTERY_TYPE)
         """
+        # Si ya tenemos el valor en caché, lo devolvemos directamente
+        if self._cached_battery_type is not None:
+            if self.DEBUG:
+                print('Devolviendo tipo de batería desde caché')
+            return self._cached_battery_type
+            
+        # Si no está en caché, lo leemos del controlador
         scheme = self.sectionMap['battery_type']
 
         if self.DEBUG:
@@ -973,7 +1091,12 @@ class RenogyRoverLi(AbstractModel):
         response = self.serial.read_register(scheme['address'], scheme['bytes'],
                                              scheme['type'])
 
-        return self.BATTERY_TYPE.get(response[0]) if response else None
+        if response:
+            # Guardamos el resultado en caché
+            self._cached_battery_type = self.BATTERY_TYPE.get(response[0])
+            return self._cached_battery_type
+            
+        return None
 
     def get_today_historical_info_datas (self):
         """
@@ -1064,327 +1187,129 @@ class RenogyRoverLi(AbstractModel):
         Devuelve todos los datos del controlador de carga solar
         :return:
         """
-        return {
-            **self.get_today_historical_info_datas(),
-            **self.get_historical_info_datas(),
-            **self.get_all_controller_info_datas(),
-            **self.get_all_solar_panel_info_datas(),
-            **self.get_all_battery_info_datas(),
-            **self.get_all_load_info_datas(),
-            **{
-                'controller_temperature': self.get_controller_temperature(),
-                'street_light_status': self.get_street_light_status(),
-                'street_light_brightness': self.get_street_light_brightness(),
-            }
+        # Usando dict.update() en lugar de ** unpacking para compatibilidad con MicroPython
+        result = {}
+        result.update(self.get_today_historical_info_datas())
+        result.update(self.get_historical_info_datas())
+        result.update(self.get_all_controller_info_datas())
+        result.update(self.get_all_solar_panel_info_datas())
+        result.update(self.get_all_battery_info_datas())
+        result.update(self.get_all_load_info_datas())
+        
+        # Add additional fields
+        additional_fields = {
+            'controller_temperature': self.get_controller_temperature(),
+            'street_light_status': self.get_street_light_status(),
+            'street_light_brightness': self.get_street_light_brightness(),
         }
-
-    def tablemodel (self):
-        """
-        Plantea campos como modelo de datos para una base de datos y poder ser
-        tomados desde el exterior.
-        """
-        return {
-            'device_id': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'battery_voltage': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'battery_temperature': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'battery_percentage': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'controller_temperature': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'load_voltage': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'load_current': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 2
-                },
-                'others': None,
-            },
-            'load_power': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'solar_voltage': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'solar_current': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'solar_power': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'street_light_status': {
-                'type': 'Boolean',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'street_light_brightness': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'charging_status': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'charging_status_label': {
-                'type': 'String',
-                'params': { },
-                'others': None,
-            },
-
-            'hardware': {
-                'type': 'String',
-                'params': { },
-                'others': None,
-            },
-            'version': {
-                'type': 'String',
-                'params': { },
-                'others': None,
-            },
-            'serial_number': {
-                'type': 'String',
-                'params': { },
-                'others': None,
-            },
-            'system_voltage_current': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'system_intensity_current': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'battery_type': {
-                'type': 'String',
-                'params': { },
-                'others': None,
-            },
-            'nominal_battery_capacity': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-
-            'today_battery_max_voltage': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'today_battery_min_voltage': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'today_max_charging_current': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 2
-                },
-                'others': None,
-            },
-            'today_max_discharging_current': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 2
-                },
-                'others': None,
-            },
-            'today_max_charging_power': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'today_charging_amp_hours': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'today_discharging_amp_hours': {
-                'type': 'Numeric',
-                'params': {
-                    'precision': 11,
-                    'asdecimal': True,
-                    'scale': 1
-                },
-                'others': None,
-            },
-            'today_power_generation': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'today_power_consumption': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'historical_total_days_operating': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'historical_total_number_battery_over_discharges': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'historical_total_number_battery_full_charges': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'historical_total_charging_amp_hours': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'historical_total_discharging_amp_hours': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'historical_cumulative_power_generation': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-            'historical_cumulative_power_consumption': {
-                'type': 'Integer',
-                'params': {
-                    'precision': 11,
-                },
-                'others': None,
-            },
-
-            'created_at': {
-                'type': 'DateTime',
-                'params': None,
-                'others': {
-                    'default': datetime.datetime.utcnow
-                },
-            },
-        }
+        result.update(additional_fields)
+        
+        return result
 
     def debug (self):
         """
         Función para depurar funcionamiento del modelo proyectando datos por
         consola.
+        
+        Muestra información detallada sobre el controlador, incluyendo:
+        - Datos estáticos en caché
+        - Lecturas actuales
+        - Estado de la batería
+        - Estado de los paneles solares
+        - Información histórica
         """
-        pass
+
+        print("\n" + "="*50)
+        print("DEPURACIÓN DEL CONTROLADOR RENOGY ROVER LI")
+        print("="*50)
+        
+        # Mostrar timestamp
+        timestamp = localtime()
+        print(f"Fecha y hora: {timestamp[0]}/{timestamp[1]}/{timestamp[2]} {timestamp[3]}:{timestamp[4]}:{timestamp[5]}")
+        
+        # Mostrar información del dispositivo
+        print("\n--- INFORMACIÓN DEL DISPOSITIVO ---")
+        print(f"ID del dispositivo: {self.device_id}")
+        
+        # Mostrar datos estáticos en caché
+        print("\n--- DATOS ESTÁTICOS EN CACHÉ ---")
+        print(f"Versión del software: {self._cached_version if self._cached_version is not None else 'No en caché'}")
+        print(f"Versión del hardware: {self._cached_hardware if self._cached_hardware is not None else 'No en caché'}")
+        print(f"Número de serie: {self._cached_serial_number if self._cached_serial_number is not None else 'No en caché'}")
+        print(f"Voltaje del sistema: {self._cached_system_voltage_current if self._cached_system_voltage_current is not None else 'No en caché'}")
+        print(f"Tipo de batería: {self._cached_battery_type if self._cached_battery_type is not None else 'No en caché'}")
+        print(f"Capacidad nominal de la batería: {self._cached_nominal_battery_capacity if self._cached_nominal_battery_capacity is not None else 'No en caché'}")
+        
+        # Mostrar lecturas actuales
+        print("\n--- LECTURAS ACTUALES ---")
+        print("Estado de la batería:")
+        try:
+            battery_voltage = self.get_battery_voltage()
+            print(f"  Voltaje de la batería: {battery_voltage}V")
+        except Exception as e:
+            print(f"  Error al leer voltaje de la batería: {e}")
+            
+        try:
+            battery_percentage = self.get_battery_percentage()
+            print(f"  Porcentaje de la batería: {battery_percentage}%")
+        except Exception as e:
+            print(f"  Error al leer porcentaje de la batería: {e}")
+            
+        try:
+            battery_temperature = self.get_battery_temperature()
+            print(f"  Temperatura de la batería: {battery_temperature}°C")
+        except Exception as e:
+            print(f"  Error al leer temperatura de la batería: {e}")
+            
+        try:
+            charging_status = self.get_charging_status_label()
+            print(f"  Estado de carga: {charging_status}")
+        except Exception as e:
+            print(f"  Error al leer estado de carga: {e}")
+        
+        print("\nEstado de los paneles solares:")
+        try:
+            solar_voltage = self.get_solar_voltage()
+            print(f"  Voltaje de los paneles: {solar_voltage}V")
+        except Exception as e:
+            print(f"  Error al leer voltaje de los paneles: {e}")
+            
+        try:
+            solar_current = self.get_solar_current()
+            print(f"  Corriente de los paneles: {solar_current}A")
+        except Exception as e:
+            print(f"  Error al leer corriente de los paneles: {e}")
+            
+        try:
+            solar_power = self.get_solar_power()
+            print(f"  Potencia de los paneles: {solar_power}W")
+        except Exception as e:
+            print(f"  Error al leer potencia de los paneles: {e}")
+        
+        print("\nEstado del controlador:")
+        try:
+            controller_temperature = self.get_controller_temperature()
+            print(f"  Temperatura del controlador: {controller_temperature}°C")
+        except Exception as e:
+            print(f"  Error al leer temperatura del controlador: {e}")
+        
+        # Mostrar información histórica
+        print("\n--- INFORMACIÓN HISTÓRICA DEL DÍA ---")
+        try:
+            today_data = self.get_today_historical_info_datas()
+            for key, value in today_data.items():
+                print(f"  {key}: {value}")
+        except Exception as e:
+            print(f"  Error al leer información histórica del día: {e}")
+            
+        print("\n--- INFORMACIÓN HISTÓRICA TOTAL ---")
+        try:
+            historical_data = self.get_historical_info_datas()
+            for key, value in historical_data.items():
+                print(f"  {key}: {value}")
+        except Exception as e:
+            print(f"  Error al leer información histórica total: {e}")
+        
+        print("\n" + "="*50)
+        print("FIN DE LA DEPURACIÓN")
+        print("="*50 + "\n")
