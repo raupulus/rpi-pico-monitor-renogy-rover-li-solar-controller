@@ -14,26 +14,6 @@
 # Description: Archivo de ejemplo de configuración de entorno para el proyecto.
 #              Copia este archivo a env.py y actualiza los valores.
 #
-# Dependencies: MicroPython
-#
-# @copyright  Copyright © 2025 Raúl Caro Pastorino
-# @license    https://wwww.gnu.org/licenses/gpl.txt
-#
-# Copyright (C) 2025  Raúl Caro Pastorino
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>
-
 
 # Modo de depuración (True/False)
 DEBUG = False
@@ -82,3 +62,9 @@ SLEEP_TIME = 60  # Tiempo de espera entre lecturas en segundos
 # BATTERY_ADC_PIN = 26  # Número de pin ADC para monitoreo de batería
 # BATTERY_MIN_VOLTAGE = 2.5  # Voltaje mínimo de la batería
 # BATTERY_MAX_VOLTAGE = 4.2  # Voltaje máximo de la batería
+
+# Configuración de LEDs externos (opcional)
+# Si no se configuran, el programa funcionará sin usar LEDs externos
+LED_POWER_PIN = 15  # Número de pin GPIO para LED de encendido
+LED_UPLOAD_PIN = 14  # Número de pin GPIO para LED de subida a API/Home Assistant
+LED_CYCLE_PIN = 13  # Número de pin GPIO para LED de trabajo del ciclo
