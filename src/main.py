@@ -128,19 +128,21 @@ def sync_time():
             print(f"Error al sincronizar la hora: {e}")
         return False
 
-def light_sleep(seconds):
+def sleep_pause(seconds):
     """
-    Pongo el dispositivo en modo de sueño ligero durante el número de segundos especificado.
-    Esto preserva la RAM pero mantiene los periféricos encendidos.
+    Pauso la ejecución durante el número de segundos especificado.
+    Uso una pausa simple en lugar de light_sleep debido a problemas de compatibilidad.
+    Por algún motivo, la pausa simple no funciona correctamente en
+    MicroPython con raspberry pi pico.
     
     Args:
-        seconds (int): Número de segundos para dormir
+        seconds (int): Número de segundos para pausar
     """
     if DEBUG:
-        print(f"Entrando en modo de sueño ligero durante {seconds} segundos...")
+        print(f"Pausando durante {seconds} segundos...")
     
-    # El sueño ligero preserva la RAM pero mantiene los periféricos encendidos
-    machine.lightsleep(seconds * 1000)  # Convierto a milisegundos
+    # Uso una pausa simple en lugar de light_sleep
+    time.sleep(seconds)
 
 def collect_garbage():
     """
@@ -211,9 +213,6 @@ def loop():
             if DEBUG:
                 print("Iniciando ciclo de recolección de datos...")
             
-            # Registro el tiempo de inicio
-            start_time = time.time()
-            
             # Leo datos del controlador solar
             datas = solar_controller.get_all_datas()
             info = solar_controller.get_all_controller_info_datas()
@@ -266,18 +265,11 @@ def loop():
                     if DEBUG:
                         print("Home Assistant no es accesible")
             
-            # Calculo el tiempo de ejecución
-            end_time = time.time()
-            execution_time = end_time - start_time
-            
             if DEBUG:
-                print(f"Tiempo de ejecución: {execution_time:.2f} segundos")
+                print(f"Ciclo completado correctamente")
             
             # Ejecuto la recolección de basura
             collect_garbage()
-            
-            # Calculo el tiempo de espera restante
-            sleep_time = max(1, SLEEP_TIME - execution_time)
             
             # Parpadeo el LED para indicar un ciclo exitoso
             rpi_pico.led_off()
@@ -286,8 +278,12 @@ def loop():
             time.sleep(0.2)
             rpi_pico.led_off()
             
-            # Uso sueño ligero para preservar la conexión WiFi
-            light_sleep(int(sleep_time))
+            # Pauso durante el tiempo configurado en SLEEP_TIME
+            if DEBUG:
+                print(f"Pausando durante {SLEEP_TIME} segundos antes del próximo ciclo")
+            
+            # Uso pausa simple en lugar de light_sleep
+            sleep_pause(SLEEP_TIME)
             
             # Enciendo el LED nuevamente al despertar
             rpi_pico.led_on()
@@ -308,18 +304,11 @@ def loop():
                 rpi_pico.led_off()
                 time.sleep(0.1)
             
-            # Calculo el tiempo de ejecución hasta este punto
-            end_time = time.time()
-            execution_time = end_time - start_time
-            
-            # Calculo el tiempo de espera restante - asegurándome de respetar SLEEP_TIME
-            sleep_time = max(1, SLEEP_TIME - execution_time)
-            
             if DEBUG:
-                print(f"Ocurrió un error, durmiendo durante {sleep_time} segundos antes del próximo ciclo")
+                print(f"Ocurrió un error, pausando durante {SLEEP_TIME} segundos antes del próximo ciclo")
             
-            # Uso sueño ligero para preservar la conexión WiFi, incluso después de errores
-            light_sleep(int(sleep_time))
+            # Uso pausa simple en lugar de light_sleep, incluso después de errores
+            sleep_pause(SLEEP_TIME)
 
 def main():
     """

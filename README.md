@@ -100,10 +100,9 @@ LICENSE para más detalles.
   cambiar. Los datos estáticos son: version, system_voltage_current, 
   hardware, battery_type, serial_number y nominal_battery_capacity
 - [x] Implementar método debug en modelo RenogyRoverLi
-- Cambiar light_sleep que parece no funcionar bien en raspberry pi pico por 
-  una pausa de forma que se mida cada 30 segundos y se suba cada 90. Ambos 
-  parametrizado en el env.py para en cada medida sacar max/min de consumo en 
-  el intervalo (3 lecturas)
+- [x] Cambiar light_sleep que parece no funcionar bien en raspberry pi pico por 
+  una pausa simple usando time.sleep. Se ha eliminado el cálculo de tiempo de ejecución
+  para asegurar que cada iteración tenga un intervalo fijo de SLEEP_TIME segundos.
 - Añadir led externo a un pin para indicar encendido
 - Añadir led externo a un pin para indicar subiendo a api/home asistant
 - Añadir led externo a un pin para indicar trabajo del ciclo
