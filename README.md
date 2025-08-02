@@ -1,33 +1,36 @@
-# rpi-pico-monitor-renogy-rover-li-solar-controller
+# Raspberry Pi Pico Monitor para el Controlador Solar Renogy Rover LI
 
-Este proyecto permite obtener la información de un controlador solar `Renogy 
-Rover LI` desde una raspberry pi pico para subirlo a mi propia api y/o a un 
-home assistant de forma opcional.
+## Descripción del Proyecto
 
+Este proyecto permite monitorizar un controlador solar **Renogy Rover LI** utilizando una **Raspberry Pi Pico** con MicroPython. El sistema recopila datos del controlador solar a través de una conexión RS232 y ofrece las siguientes funcionalidades:
 
----
-
-PROYECTO EN DESARROLLO
-
---- 
-
-Sitio web del autor: [https://raupulus.dev](https://raupulus.dev)
+- Lectura de parámetros del controlador solar (voltaje, corriente, potencia, temperatura, etc.)
+- Envío de datos a una API personalizada para almacenamiento y análisis
+- Integración con Home Assistant para visualización y monitorización en tiempo real
+- Indicadores LED para mostrar el estado del sistema
+- Soporte para conexión WiFi (con la Raspberry Pi Pico W)
 
 ![Imagen del Proyecto](docs/images/img1.jpg "Imagen Principal de raspberry pi pico w")
 
-Repository [https://gitlab.com/raupulus/rpi-pico-template-project-micropython](https://gitlab.com/raupulus/rpi-pico-template-project-micropython)
+## Autor y Repositorio
 
-Una de las ventajas es que en **Models** ya disponemos de dos modelos que
-suelen ser fundamentales para mi: 
+- **Autor:** Raúl Caro Pastorino
+- **Web:** [https://raupulus.dev](https://raupulus.dev)
+- **Repositorio:** [https://gitlab.com/raupulus/rpi-pico-monitor-renogy-rover-li-solar-controller](https://gitlab.com/raupulus/rpi-pico-monitor-renogy-rover-li-solar-controller)
+- **Proyecto base:** [https://gitlab.com/raupulus/rpi-pico-template-project-micropython](https://gitlab.com/raupulus/rpi-pico-template-project-micropython)
 
-- API: Para interactuar fácilmente con mis apis enviando/recibiendo datos
-- RpiPico: Representa a la raspberry: incluye conectividad wireless, gestión de
-  ADC integrado, puede obtener información de la red y conectar a redes 
-  alternativas por si nos desplazamos (usamos en varias ubicaciones) o 
-  necesitamos un respaldo, información de temperatura...
+## Características Principales
 
-Además de algunos parámetros básicos en el archivo de variables de entorno
-que usamos como base **.env.example.py**
+- **Modelos Modulares**: El proyecto utiliza una arquitectura modular con clases especializadas:
+  - **API**: Facilita la interacción con APIs externas para enviar y recibir datos
+  - **RpiPico**: Gestiona la Raspberry Pi Pico, incluyendo conectividad WiFi, ADC integrado, información de red y soporte para redes alternativas
+  - **RenogyRoverLi**: Implementa la comunicación con el controlador solar mediante protocolo Modbus
+  - **SerialConnection**: Maneja la comunicación serial RS232 con el controlador
+  - **HomeAssistantConnection**: Gestiona la integración con Home Assistant
+
+- **Configuración Flexible**: Mediante el archivo de variables de entorno `.env.py` (basado en `.env.example.py`) se pueden personalizar todos los aspectos del sistema
+
+- **Monitorización Visual**: Soporte para LEDs externos que indican el estado del sistema en tiempo real
 
 <p align="center">
   <img src="docs/images/2.jpg" alt="Raspberry pi pico w image 1" height="150">
@@ -36,32 +39,141 @@ que usamos como base **.env.example.py**
   <img src="docs/images/scheme_thumbnail.jpg" alt="Raspberry pi pico w esquema de pines" height="150">
 </p>
 
-## Software y Firmware
+## Requisitos
 
-- IDE/Editor (EJ: thonny, pycharm o vscode)
-- [MicroPython 1.23](https://micropython.org/download/rp2-pico/) instalado 
-  en la Raspberry Pi Pico.
+### Software
+- IDE/Editor (como Thonny, PyCharm o VSCode)
+- [MicroPython 1.23](https://micropython.org/download/rp2-pico/) o superior instalado en la Raspberry Pi Pico
+
+### Hardware
+- Raspberry Pi Pico (preferiblemente Pico W para funcionalidad WiFi)
+- Controlador solar Renogy Rover Li
+- Conversor TTL a RS232 para la comunicación con el controlador
+- Opcional: LEDs externos para indicación visual del estado
 
 ## Contenido del Repositorio
 
 - **src/**: Código fuente del proyecto.
-- **src/Models**: Modelos/Clases para separar entidades que intervienen.
+  - **src/Models/**: Modelos/Clases para separar entidades que intervienen.
+  - **src/tests/**: Scripts de prueba y verificación para el proyecto.
 - **docs/**: Documentación adicional, esquemas y guías de instalación.
 
-## Instalación
+## Instalación y Configuración
+
+### Preparación del Hardware
+
+1. Conecta el conversor TTL a RS232 a la Raspberry Pi Pico según el [diagrama de conexiones](docs/CONNECTION_DIAGRAM.md)
+2. Conecta el conversor RS232 al controlador solar Renogy Rover Li
+3. Opcionalmente, conecta los LEDs externos a los pines GPIO correspondientes
+
+### Instalación del Software
 
 1. **Instalación de MicroPython:**
-   - Asegúrate de que MicroPython esté instalado en tu Raspberry Pi Pico. Puedes seguir las instrucciones en la [documentación oficial](https://docs.micropython.org/en/latest/rp2/quickref.html).
+   - Asegúrate de que MicroPython esté instalado en tu Raspberry Pi Pico
+   - Sigue las instrucciones en la [documentación oficial de MicroPython](https://docs.micropython.org/en/latest/rp2/quickref.html)
 
-2. **Cargar el Código:**
-   - Descarga o clona este repositorio.
-   - Copia el archivo *.env.example.py* a *env.py* y rellena los datos para 
-     conectar al wireless además de la ruta para subir datos a tu API.
-   - Copia los archivos en la carpeta `src/` a la Raspberry Pi Pico.
+2. **Instalación del Proyecto:**
+   - Descarga o clona este repositorio
+   - Copia el archivo `.env.example.py` a `env.py`
+   - Configura las variables en `env.py` según tus necesidades:
+     - Configuración WiFi
+     - Credenciales de la API
+     - Token de Home Assistant (opcional)
+     - Pines GPIO para LEDs (opcional)
+   - Copia todos los archivos de la carpeta `src/` a la Raspberry Pi Pico
 
-## Esquema de la raspberry pi pico
+3. **Verificación de la Instalación:**
+   - Reinicia la Raspberry Pi Pico
+   - El LED integrado debería encenderse, indicando que el programa está en ejecución
+   - Si configuraste LEDs externos, el LED de encendido debería iluminarse
 
-![Imagen del Proyecto](docs/images/scheme.png "Esquema de pines para la raspberry pi pico")
+## Diagrama de Conexiones
+
+El siguiente diagrama muestra el esquema de conexiones entre la Raspberry Pi Pico y el controlador solar Renogy Rover Li:
+
+![Esquema de Conexiones](docs/images/scheme.png "Esquema de conexiones para la Raspberry Pi Pico")
+
+Para más detalles sobre las conexiones, consulta la [documentación de conexión](docs/CONNECTION_DIAGRAM.md).
+
+## Indicadores LED
+
+El proyecto soporta tres LEDs externos opcionales para indicar diferentes estados:
+
+1. **LED de Encendido**: Indica que el programa está en ejecución. Permanece encendido mientras el programa está activo.
+2. **LED de Subida**: Indica cuando se están subiendo datos a la API o a Home Assistant. Parpadea durante las operaciones de subida.
+3. **LED de Ciclo**: Indica cuando se está leyendo datos del controlador solar. Se enciende durante la lectura de datos.
+
+Para configurar estos LEDs, define los siguientes parámetros en tu archivo `env.py`:
+
+```python
+# Configuración de LEDs externos (opcional)
+# Si no se configuran, el programa funcionará sin usar LEDs externos
+LED_POWER_PIN = 15  # Número de pin GPIO para LED de encendido
+LED_UPLOAD_PIN = 14  # Número de pin GPIO para LED de subida a API/Home Assistant
+LED_CYCLE_PIN = 13  # Número de pin GPIO para LED de trabajo del ciclo
+```
+
+Si no deseas utilizar alguno de estos LEDs, simplemente no definas la variable correspondiente o asígnale el valor `None`.
+
+## Integración con Home Assistant
+
+Este proyecto incluye una integración completa con Home Assistant, permitiendo visualizar todos los datos del controlador solar en tu panel de control. La integración está diseñada para agrupar automáticamente todas las entidades bajo un único dispositivo en Home Assistant.
+
+### Configuración de Home Assistant
+
+Para configurar Home Assistant con este proyecto:
+
+1. Genera un token de acceso de larga duración en Home Assistant
+2. Configura las variables `UPLOAD_HOME_ASSISTANT`, `HOME_ASSISTANT_URL` y `HOME_ASSISTANT_TOKEN` en tu archivo `env.py`
+3. Reinicia la Raspberry Pi Pico para que comience a enviar datos a Home Assistant
+4. Sigue las instrucciones detalladas en la [Guía Completa de Configuración de Home Assistant](docs/HOME_ASSISTANT_GUIDE.md)
+
+### Herramientas de Prueba y Verificación
+
+El proyecto incluye scripts de prueba y verificación en el directorio `src/tests/`:
+
+1. **Verificación de Entidades** (`verify_entity_grouping.py`):
+   - Verifica que todas las entidades existen en Home Assistant
+   - Comprueba si las entidades están correctamente agrupadas
+   - Corrige automáticamente problemas de agrupación
+   - Proporciona un resumen detallado del estado de las entidades
+
+   Para usar esta herramienta, ejecuta el siguiente código en tu Raspberry Pi Pico:
+   ```python
+   from tests import verify_entity_grouping
+   ```
+
+2. **Prueba de Creación de Dispositivo** (`test_device_creation.py`):
+   - Verifica que el dispositivo se crea correctamente en Home Assistant
+   - Comprueba la comunicación con Home Assistant
+   - Muestra información detallada sobre el dispositivo creado
+
+   Para usar esta herramienta, ejecuta el siguiente código en tu Raspberry Pi Pico:
+   ```python
+   from tests import test_device_creation
+   ```
+
+> **Nota**: Estos scripts están diseñados para ejecutarse en la Raspberry Pi Pico con los archivos del proyecto ya cargados, no en un entorno de desarrollo local.
+
+### Documentación Adicional de Home Assistant
+
+- [Guía Completa de Configuración](docs/HOME_ASSISTANT_GUIDE.md): Instrucciones detalladas para configurar Home Assistant
+- [Solución para Problemas de Creación de Dispositivo](docs/DEVICE_CREATION_ISSUE_FIX.md): Solución para problemas de creación de dispositivos
+- [Correcciones al Panel de Home Assistant](docs/PANEL_FIXES.md): Solución para problemas con entidades y tarjetas
+
+## Documentación Técnica
+
+### Protocolo Modbus
+
+El controlador solar Renogy Rover Li utiliza el protocolo Modbus RTU sobre RS232 para la comunicación. Para entender cómo comunicarse con el controlador a nivel de protocolo, consulta la siguiente documentación:
+
+- [Protocolo Modbus para Renogy Rover Li](docs/MODBUS_PROTOCOL.md): Documentación detallada sobre el protocolo Modbus, incluyendo direcciones de registros, tipos de datos, interpretación de valores y ejemplos de comandos y respuestas.
+
+Esta documentación es especialmente útil si estás:
+- Implementando tu propia solución para comunicarte con el controlador
+- Depurando problemas de comunicación
+- Extendiendo la funcionalidad del proyecto para leer registros adicionales
+- Interesado en entender cómo funciona la comunicación a bajo nivel
 
 ## Licencia
 
@@ -69,40 +181,35 @@ Este proyecto está licenciado bajo la Licencia GPLv3. Consulta el archivo
 LICENSE para más detalles.
 
 
-## TODO
+## Estado del Proyecto
 
-- [x] Api_OLD.py es el modelo que usaba en la raspberry pi 2, ahora hay que 
-  utilizar Api.py e implementar la subida ahí.
-- Implementar subida al home assistant, añadir su variable al .env.example.py y 
-  controlar que puede estar apagado, si falla pues se ignora hasta la 
-  próxima lectura.
-- Se debe leer, subir a la api, subir al home assistant (si estuviera 
-  configurado) y dormir durante 1 minuto.
-- [x] En el modelo de la raspberry, devolver de un método datos de estado: 
-  carga 
-  de batería restante estimada, temperatura interna, wifi conectado, wifi 
-  fuerza señal.
-- [x] Al iniciar la raspberry y estar conectada a internet, debe sincronizarse 
-  en hora con server ntp
-- [x] A la api hay que enviar datos dentro de "microcontroller" como 
-  añadido a los datos de cada petición, es decir, del diccionario que se 
-  envía hay que añadir microcontroller con los datos que devuelve el método 
-  de la raspberry para: carga 
-  de batería restante estimada, temperatura interna, wifi conectado, wifi 
-  fuerza señal.
-- [x] Mirar las formas de dormir el microcontrolador para las esperas de 
-  1minuto, quizás no interese que se duerma completamente para ahorrar 
-  conectar luego a wireless.
-- [x] Crear documentación indicando datos enviados a cada api
-- [x] Los datos que se leen del controlador solar y son estáticos como versiones 
-  y modelo de hardware, deben obtenerse solo una vez y guardarse en la clase 
-  en algún atributo. No se debe pedir en cada iteración ya que no van a 
-  cambiar. Los datos estáticos son: version, system_voltage_current, 
-  hardware, battery_type, serial_number y nominal_battery_capacity
-- [x] Implementar método debug en modelo RenogyRoverLi
-- [x] Cambiar light_sleep que parece no funcionar bien en raspberry pi pico por 
-  una pausa simple usando time.sleep. Se ha eliminado el cálculo de tiempo de ejecución
-  para asegurar que cada iteración tenga un intervalo fijo de SLEEP_TIME segundos.
-- Añadir led externo a un pin para indicar encendido
-- Añadir led externo a un pin para indicar subiendo a api/home asistant
-- Añadir led externo a un pin para indicar trabajo del ciclo
+El proyecto se encuentra en un estado funcional y estable. Se han implementado todas las funcionalidades principales:
+
+- ✅ Lectura de datos del controlador solar Renogy Rover Li
+- ✅ Envío de datos a API personalizada
+- ✅ Integración con Home Assistant
+- ✅ Soporte para LEDs externos de estado
+- ✅ Optimización de rendimiento (caché de datos estáticos)
+- ✅ Sincronización de hora con servidor NTP
+- ✅ Monitorización del estado del microcontrolador
+
+### Próximas Mejoras
+
+Algunas mejoras que se podrían implementar en el futuro:
+
+- Interfaz web para configuración y monitorización
+- Soporte para múltiples controladores solares
+- Almacenamiento local de datos cuando no hay conexión
+- Análisis estadístico de datos históricos
+- Alertas configurables para condiciones específicas
+
+## Contribuciones
+
+Las contribuciones son bienvenidas. Si deseas contribuir al proyecto:
+
+1. Haz un fork del repositorio
+2. Crea una rama para tu funcionalidad (`git checkout -b feature/nueva-funcionalidad`)
+3. Haz commit de tus cambios (`git commit -am 'Añadir nueva funcionalidad'`)
+4. Haz push a la rama (`git push origin feature/nueva-funcionalidad`)
+5. Crea un Pull Request
+

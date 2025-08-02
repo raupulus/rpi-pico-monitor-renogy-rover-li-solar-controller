@@ -78,8 +78,6 @@ class RenogyRoverLi:
     _cached_serial_number = None
     _cached_nominal_battery_capacity = None
 
-    tablename = 'renogy_rover_li'
-
     sectionMap = {
         'model': {
             'bytes': 8,
