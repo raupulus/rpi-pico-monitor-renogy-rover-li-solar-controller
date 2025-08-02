@@ -71,25 +71,39 @@ LICENSE para más detalles.
 
 ## TODO
 
-- Api_OLD.py es el modelo que usaba en la raspberry pi 2, ahora hay que 
+- [x] Api_OLD.py es el modelo que usaba en la raspberry pi 2, ahora hay que 
   utilizar Api.py e implementar la subida ahí.
-- Implementar subida al home assistant, añadir su variable al .env.example y 
+- Implementar subida al home assistant, añadir su variable al .env.example.py y 
   controlar que puede estar apagado, si falla pues se ignora hasta la 
   próxima lectura.
 - Se debe leer, subir a la api, subir al home assistant (si estuviera 
   configurado) y dormir durante 1 minuto.
-- En el modelo de la raspberry, devolver de un método datos de estado: carga 
+- [x] En el modelo de la raspberry, devolver de un método datos de estado: 
+  carga 
   de batería restante estimada, temperatura interna, wifi conectado, wifi 
   fuerza señal.
-- Al iniciar la raspberry y estar conectada a internet, debe sincronizarse 
+- [x] Al iniciar la raspberry y estar conectada a internet, debe sincronizarse 
   en hora con server ntp
-- A la api hay que enviar datos dentro de "microcontroller" como 
+- [x] A la api hay que enviar datos dentro de "microcontroller" como 
   añadido a los datos de cada petición, es decir, del diccionario que se 
   envía hay que añadir microcontroller con los datos que devuelve el método 
   de la raspberry para: carga 
   de batería restante estimada, temperatura interna, wifi conectado, wifi 
   fuerza señal.
-- Mirar las formas de dormir el microcontrolador para las esperas de 1m, quizás
-  no interese que se duerma completamente para ahorrar conectar luego a 
-  wireless.
-- Crear documentación indicando datos enviados a cada api
+- [x] Mirar las formas de dormir el microcontrolador para las esperas de 
+  1minuto, quizás no interese que se duerma completamente para ahorrar 
+  conectar luego a wireless.
+- [x] Crear documentación indicando datos enviados a cada api
+- [x] Los datos que se leen del controlador solar y son estáticos como versiones 
+  y modelo de hardware, deben obtenerse solo una vez y guardarse en la clase 
+  en algún atributo. No se debe pedir en cada iteración ya que no van a 
+  cambiar. Los datos estáticos son: version, system_voltage_current, 
+  hardware, battery_type, serial_number y nominal_battery_capacity
+- [x] Implementar método debug en modelo RenogyRoverLi
+- Cambiar light_sleep que parece no funcionar bien en raspberry pi pico por 
+  una pausa de forma que se mida cada 30 segundos y se suba cada 90. Ambos 
+  parametrizado en el env.py para en cada medida sacar max/min de consumo en 
+  el intervalo (3 lecturas)
+- Añadir led externo a un pin para indicar encendido
+- Añadir led externo a un pin para indicar subiendo a api/home asistant
+- Añadir led externo a un pin para indicar trabajo del ciclo
