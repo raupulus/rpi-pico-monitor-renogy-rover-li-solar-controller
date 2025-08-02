@@ -1,4 +1,4 @@
-from machine import ADC, Pin, SPI, I2C
+from machine import ADC, Pin, SPI, I2C, deepsleep
 import network
 from time import sleep_ms
 
@@ -564,3 +564,11 @@ class RpiPico:
         }
 
         self.read_external_battery()
+
+    def deepsleep(self, seconds):
+        """
+        Entra en modo sueño profundo durante los segundos recibidos.
+        Para evitar problemas al entrar en el modo, se necesita desactivar el wireless primero.
+        """
+        self.wifi_disconnect()
+        deepsleep(seconds * 1000)
