@@ -10,7 +10,8 @@ Esta guía proporciona instrucciones paso a paso para configurar Home Assistant 
 4. [Configuración de Home Assistant](#configuración-de-home-assistant)
 5. [Verificación de la Integración](#verificación-de-la-integración)
 6. [Creación de Paneles](#creación-de-paneles)
-7. [Solución de Problemas](#solución-de-problemas)
+7. [Creación de Automatizaciones](#creación-de-automatizaciones)
+8. [Solución de Problemas](#solución-de-problemas)
 
 ## Requisitos Previos
 
@@ -265,6 +266,117 @@ Si quieres personalizar el panel de control, puedes hacerlo de dos maneras:
 2. Añade o modifica las tarjetas según tus preferencias
 3. Guarda el archivo
 4. Recarga la página del panel de control para ver los cambios
+
+## Creación de Automatizaciones
+
+Una de las características más potentes de Home Assistant es la capacidad de crear automatizaciones basadas en los valores de los sensores. A continuación, se explica cómo crear automatizaciones utilizando los datos del controlador solar Renogy Rover Li.
+
+### Entidades Disponibles para Automatizaciones
+
+Todas las entidades creadas por este proyecto están disponibles para automatizaciones. Algunas de las más útiles son:
+
+- **sensor.solar_battery_percentage**: Porcentaje de carga de la batería
+- **sensor.solar_battery_voltage**: Voltaje de la batería
+- **sensor.solar_solar_power**: Potencia generada por los paneles solares
+- **sensor.solar_controller_temperature**: Temperatura del controlador solar
+- **sensor.solar_battery_temperature**: Temperatura de la batería
+- **sensor.solar_charging_status_label**: Estado de carga de la batería (texto)
+
+### Creación de una Automatización Básica
+
+Para crear una automatización básica:
+
+1. Ve a Configuración > Automatizaciones y Escenas
+2. Haz clic en "+ Crear Automatización"
+3. Selecciona "Crear una nueva automatización"
+4. Configura el disparador (trigger), la condición (condition) y la acción (action)
+5. Haz clic en "Guardar"
+
+### Ejemplo: Notificación de Telegram cuando la Batería está Baja
+
+A continuación, se muestra un ejemplo de cómo crear una automatización que envía una notificación a Telegram cuando el porcentaje de batería cae por debajo del 70%.
+
+#### Requisitos Previos
+
+- Tener configurada la integración de Telegram en Home Assistant
+  - Ve a Configuración > Integraciones
+  - Busca "Telegram" y sigue las instrucciones para configurarla
+
+#### Pasos para Crear la Automatización
+
+1. Ve a Configuración > Automatizaciones y Escenas
+2. Haz clic en "+ Crear Automatización"
+3. Selecciona "Crear una nueva automatización"
+4. Configura el nombre: "Alerta de Batería Baja"
+5. Configura el disparador:
+   - Tipo: Estado
+   - Entidad: sensor.solar_battery_percentage
+   - Tipo de disparador: Numérico
+   - Por debajo de: 70
+   - Durante al menos: 5 minutos (opcional, para evitar falsas alarmas)
+6. Configura la condición (opcional):
+   - Tipo: Estado
+   - Entidad: sensor.solar_charging_status_label
+   - Estado: not_charging (o el valor que corresponda cuando no está cargando)
+7. Configura la acción:
+   - Tipo: Llamar a un servicio
+   - Servicio: telegram_bot.send_message
+   - Datos del servicio:
+     ```yaml
+     message: "⚠️ Alerta: La batería del controlador solar está al {{ states('sensor.solar_battery_percentage') }}%, por debajo del umbral del 70%."
+     ```
+8. Haz clic en "Guardar"
+
+#### Ejemplo en YAML
+
+También puedes añadir la automatización directamente en tu archivo de configuración YAML:
+
+```yaml
+automation:
+  - alias: "Alerta de Batería Baja"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.solar_battery_percentage
+        below: 70
+        for:
+          minutes: 5
+    condition:
+      - condition: state
+        entity_id: sensor.solar_charging_status_label
+        state: "not_charging"
+    action:
+      - service: telegram_bot.send_message
+        data:
+          message: "⚠️ Alerta: La batería del controlador solar está al {{ states('sensor.solar_battery_percentage') }}%, por debajo del umbral del 70%."
+```
+
+### Otras Ideas de Automatizaciones
+
+- **Notificación de Alta Temperatura**: Enviar una alerta cuando la temperatura del controlador o la batería supere un umbral
+- **Registro de Generación Diaria**: Guardar en una base de datos la generación diaria de energía
+- **Control de Cargas**: Activar o desactivar dispositivos en función de la energía disponible
+- **Informes Periódicos**: Enviar un informe diario con el resumen de generación y consumo
+
+### Uso de Plantillas para Automatizaciones Avanzadas
+
+Home Assistant permite el uso de plantillas para crear automatizaciones más avanzadas. Por ejemplo, puedes calcular la eficiencia del sistema solar:
+
+```yaml
+sensor:
+  - platform: template
+    sensors:
+      solar_efficiency:
+        friendly_name: "Eficiencia Solar"
+        unit_of_measurement: "%"
+        value_template: >
+          {% set power = states('sensor.solar_solar_power') | float %}
+          {% set voltage = states('sensor.solar_solar_voltage') | float %}
+          {% if voltage > 0 and power > 0 %}
+            {{ (power / (voltage * 10)) * 100 }}
+          {% else %}
+            0
+          {% endif %}
+```
 
 ## Solución de Problemas
 

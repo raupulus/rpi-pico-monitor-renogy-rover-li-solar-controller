@@ -313,62 +313,62 @@ class HomeAssistantConnection:
     # Mapeo de sensores a sus unidades y clases de dispositivo
     SENSOR_METADATA = {
         # Sensores de voltaje
-        "battery_voltage": {"unit_of_measurement": "V", "device_class": "voltage"},
-        "solar_voltage": {"unit_of_measurement": "V", "device_class": "voltage"},
-        "load_voltage": {"unit_of_measurement": "V", "device_class": "voltage"},
-        "today_battery_max_voltage": {"unit_of_measurement": "V", "device_class": "voltage"},
-        "today_battery_min_voltage": {"unit_of_measurement": "V", "device_class": "voltage"},
-        "system_voltage_current": {"unit_of_measurement": "V", "device_class": "voltage"},
+        "battery_voltage": {"unit_of_measurement": "V", "device_class": "voltage", "state_class": "measurement"},
+        "solar_voltage": {"unit_of_measurement": "V", "device_class": "voltage", "state_class": "measurement"},
+        "load_voltage": {"unit_of_measurement": "V", "device_class": "voltage", "state_class": "measurement"},
+        "today_battery_max_voltage": {"unit_of_measurement": "V", "device_class": "voltage", "state_class": "measurement"},
+        "today_battery_min_voltage": {"unit_of_measurement": "V", "device_class": "voltage", "state_class": "measurement"},
+        "system_voltage_current": {"unit_of_measurement": "V", "device_class": "voltage", "state_class": "measurement"},
         
         # Sensores de corriente
-        "solar_current": {"unit_of_measurement": "A", "device_class": "current"},
-        "load_current": {"unit_of_measurement": "A", "device_class": "current"},
-        "system_intensity_current": {"unit_of_measurement": "A", "device_class": "current"},
-        "today_max_charging_current": {"unit_of_measurement": "A", "device_class": "current"},
-        "today_max_discharging_current": {"unit_of_measurement": "A", "device_class": "current"},
+        "solar_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
+        "load_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
+        "system_intensity_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
+        "today_max_charging_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
+        "today_max_discharging_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
         
         # Sensores de potencia
-        "solar_power": {"unit_of_measurement": "W", "device_class": "power"},
-        "load_power": {"unit_of_measurement": "W", "device_class": "power"},
-        "today_max_charging_power": {"unit_of_measurement": "W", "device_class": "power"},
+        "solar_power": {"unit_of_measurement": "W", "device_class": "power", "state_class": "measurement"},
+        "load_power": {"unit_of_measurement": "W", "device_class": "power", "state_class": "measurement"},
+        "today_max_charging_power": {"unit_of_measurement": "W", "device_class": "power", "state_class": "measurement"},
         
         # Sensores de energía
-        "today_power_generation": {"unit_of_measurement": "Wh", "device_class": "energy"},
-        "today_power_consumption": {"unit_of_measurement": "Wh", "device_class": "energy"},
-        "historical_cumulative_power_generation": {"unit_of_measurement": "kWh", "device_class": "energy"},
-        "historical_cumulative_power_consumption": {"unit_of_measurement": "kWh", "device_class": "energy"},
+        "today_power_generation": {"unit_of_measurement": "Wh", "device_class": "energy", "state_class": "total_increasing"},
+        "today_power_consumption": {"unit_of_measurement": "Wh", "device_class": "energy", "state_class": "total_increasing"},
+        "historical_cumulative_power_generation": {"unit_of_measurement": "kWh", "device_class": "energy", "state_class": "total_increasing"},
+        "historical_cumulative_power_consumption": {"unit_of_measurement": "kWh", "device_class": "energy", "state_class": "total_increasing"},
         
         # Sensores de temperatura
-        "battery_temperature": {"unit_of_measurement": "C", "device_class": "temperature"},
-        "controller_temperature": {"unit_of_measurement": "C", "device_class": "temperature"},
+        "battery_temperature": {"unit_of_measurement": "C", "device_class": "temperature", "state_class": "measurement"},
+        "controller_temperature": {"unit_of_measurement": "C", "device_class": "temperature", "state_class": "measurement"},
         
         # Sensores de porcentaje
-        "battery_percentage": {"unit_of_measurement": "%", "device_class": "battery"},
-        "street_light_brightness": {"unit_of_measurement": "%", "device_class": "illuminance"},
+        "battery_percentage": {"unit_of_measurement": "%", "device_class": "battery", "state_class": "measurement"},
+        "street_light_brightness": {"unit_of_measurement": "%", "device_class": "illuminance", "state_class": "measurement"},
         
         # Sensores de amperios-hora
-        "today_charging_amp_hours": {"unit_of_measurement": "Ah", "device_class": None},
-        "today_discharging_amp_hours": {"unit_of_measurement": "Ah", "device_class": None},
-        "historical_total_charging_amp_hours": {"unit_of_measurement": "Ah", "device_class": None},
-        "historical_total_discharging_amp_hours": {"unit_of_measurement": "Ah", "device_class": None},
-        "nominal_battery_capacity": {"unit_of_measurement": "Ah", "device_class": None},
+        "today_charging_amp_hours": {"unit_of_measurement": "Ah", "device_class": None, "state_class": "total_increasing"},
+        "today_discharging_amp_hours": {"unit_of_measurement": "Ah", "device_class": None, "state_class": "total_increasing"},
+        "historical_total_charging_amp_hours": {"unit_of_measurement": "Ah", "device_class": None, "state_class": "total"},
+        "historical_total_discharging_amp_hours": {"unit_of_measurement": "Ah", "device_class": None, "state_class": "total"},
+        "nominal_battery_capacity": {"unit_of_measurement": "Ah", "device_class": None, "state_class": "measurement"},
         
         # Sensores de estado
-        "charging_status": {"unit_of_measurement": None, "device_class": None},
-        "charging_status_label": {"unit_of_measurement": None, "device_class": None},
-        "street_light_status": {"unit_of_measurement": None, "device_class": "binary_sensor"},
+        "charging_status": {"unit_of_measurement": None, "device_class": None, "state_class": None},
+        "charging_status_label": {"unit_of_measurement": None, "device_class": None, "state_class": None},
+        "street_light_status": {"unit_of_measurement": None, "device_class": "binary_sensor", "state_class": None},
         
         # Sensores de conteo
-        "historical_total_days_operating": {"unit_of_measurement": "days", "device_class": None},
-        "historical_total_number_battery_over_discharges": {"unit_of_measurement": None, "device_class": None},
-        "historical_total_number_battery_full_charges": {"unit_of_measurement": None, "device_class": None},
+        "historical_total_days_operating": {"unit_of_measurement": "days", "device_class": None, "state_class": "total"},
+        "historical_total_number_battery_over_discharges": {"unit_of_measurement": None, "device_class": None, "state_class": "total"},
+        "historical_total_number_battery_full_charges": {"unit_of_measurement": None, "device_class": None, "state_class": "total"},
         
         # Otros sensores
-        "device_id": {"unit_of_measurement": None, "device_class": None},
-        "hardware": {"unit_of_measurement": None, "device_class": None},
-        "version": {"unit_of_measurement": None, "device_class": None},
-        "serial_number": {"unit_of_measurement": None, "device_class": None},
-        "battery_type": {"unit_of_measurement": None, "device_class": None}
+        "device_id": {"unit_of_measurement": None, "device_class": None, "state_class": None},
+        "hardware": {"unit_of_measurement": None, "device_class": None, "state_class": None},
+        "version": {"unit_of_measurement": None, "device_class": None, "state_class": None},
+        "serial_number": {"unit_of_measurement": None, "device_class": None, "state_class": None},
+        "battery_type": {"unit_of_measurement": None, "device_class": None, "state_class": None}
     }
     
     def update_solar_controller_data(self, data):
@@ -440,6 +440,8 @@ class HomeAssistantConnection:
                     attributes["unit_of_measurement"] = metadata["unit_of_measurement"]
                 if metadata["device_class"]:
                     attributes["device_class"] = metadata["device_class"]
+                if metadata["state_class"]:
+                    attributes["state_class"] = metadata["state_class"]
             
             # Añado información del dispositivo para agrupar sensores
             attributes["device"] = self.device_info
@@ -595,6 +597,7 @@ class HomeAssistantConnection:
             "last_update": time.time(),
             "device_class": "temperature",
             "unit_of_measurement": "C",
+            "state_class": "measurement",
             "friendly_name": "Temperatura del Microcontrolador",
             "device": self.device_info,  # Añado información del dispositivo para agrupar sensores
             "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_temperature"  # Añado unique_id para permitir la gestión desde la UI
@@ -620,6 +623,7 @@ class HomeAssistantConnection:
                 "last_update": time.time(),
                 "unit_of_measurement": "dBm",
                 "device_class": "signal_strength",
+                "state_class": "measurement",
                 "friendly_name": "Senal WiFi del Microcontrolador",
                 "device": self.device_info,  # Añado información del dispositivo para agrupar sensores
                 "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_wifi_signal"  # Añado unique_id para permitir la gestión desde la UI
@@ -633,6 +637,7 @@ class HomeAssistantConnection:
                 "last_update": time.time(),
                 "unit_of_measurement": "%",
                 "device_class": "battery",
+                "state_class": "measurement",
                 "friendly_name": "Batería del Microcontrolador",
                 "device": self.device_info,  # Añado información del dispositivo para agrupar sensores
                 "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_battery"  # Añado unique_id para permitir la gestión desde la UI
