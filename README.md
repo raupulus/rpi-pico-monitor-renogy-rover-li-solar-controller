@@ -10,7 +10,21 @@ Este proyecto permite monitorizar un controlador solar **Renogy Rover LI** utili
 - Indicadores LED para mostrar el estado del sistema
 - Soporte para conexión WiFi (con la Raspberry Pi Pico W)
 
-![Imagen del Proyecto](docs/images/img1.jpg "Imagen Principal de raspberry pi pico w")
+## Imágenes del Hardware
+
+### Hardware del Proyecto
+<p align="center">
+  <img src="docs/images/hardware/1-hardware.jpeg" alt="Hardware del proyecto" height="200">
+  <img src="docs/images/hardware/2-hardware-connected.jpeg" alt="Hardware conectado" height="200">
+  <img src="docs/images/hardware/3-solar-controller.jpeg" alt="Controlador solar" height="200">
+</p>
+
+### Diseño 3D del Hardware
+<p align="center">
+  <img src="docs/images/hardware/4-hardware-3d-design1.jpeg" alt="Diseño 3D vista 1" height="200">
+  <img src="docs/images/hardware/5-hardware-3d-design2.jpeg" alt="Diseño 3D vista 2" height="200">
+  <img src="docs/images/hardware/6-hardware-3d-design1.jpeg" alt="Diseño 3D vista 3" height="200">
+</p>
 
 ## Autor y Repositorio
 
@@ -32,18 +46,25 @@ Este proyecto permite monitorizar un controlador solar **Renogy Rover LI** utili
 
 - **Monitorización Visual**: Soporte para LEDs externos que indican el estado del sistema en tiempo real
 
+## Integración con Home Assistant - Capturas
+
+### Paneles de Home Assistant
 <p align="center">
-  <img src="docs/images/2.jpg" alt="Raspberry pi pico w image 1" height="150">
-  <img src="docs/images/3.jpg" alt="Raspberry pi pico w image 2" height="150">
-  <img src="docs/images/4.jpg" alt="Raspberry pi pico w image 3" height="150">
-  <img src="docs/images/scheme_thumbnail.jpg" alt="Raspberry pi pico w esquema de pines" height="150">
+  <img src="docs/images/home_assistant/1-homeassistant-panel-full-charged.jpeg" alt="Panel Home Assistant - Batería cargada" height="250">
+  <img src="docs/images/home_assistant/2-homeassistant-panel-medium-charged.jpeg" alt="Panel Home Assistant - Batería media" height="250">
+</p>
+
+### Datos enviados a la API
+<p align="center">
+  <img src="docs/images/api-data-uploaded.jpeg" alt="Datos subidos a la API" height="300">
 </p>
 
 ## Requisitos
 
 ### Software
 - IDE/Editor (como Thonny, PyCharm o VSCode)
-- [MicroPython 1.23](https://micropython.org/download/rp2-pico/) o superior instalado en la Raspberry Pi Pico
+- [MicroPython 1.25](https://micropython.org/download/rp2-pico/) o superior 
+  instalado en la Raspberry Pi Pico
 
 ### Hardware
 - Raspberry Pi Pico (preferiblemente Pico W para funcionalidad WiFi)
@@ -57,6 +78,26 @@ Este proyecto permite monitorizar un controlador solar **Renogy Rover LI** utili
   - **src/Models/**: Modelos/Clases para separar entidades que intervienen.
   - **src/tests/**: Scripts de prueba y verificación para el proyecto.
 - **docs/**: Documentación adicional, esquemas y guías de instalación.
+- **3d Design/**: Archivos de diseño 3D para la caja del microcontrolador.
+
+## Archivos de Diseño 3D
+
+Este proyecto incluye archivos de diseño 3D para crear una caja personalizada que aloje la Raspberry Pi Pico junto con el conversor RS232. Los archivos están disponibles en el directorio `3d Design/`:
+
+### Archivos Disponibles
+
+- **[Renogy Rover LI Raspberry pi pico - Base.stl](3d%20Design/Renogy%20Rover%20LI%20Raspberry%20pi%20pico%20-%20Base.stl)**: Archivo STL de la base de la caja
+- **[Renogy Rover LI Raspberry pi pico - Cover.stl](3d%20Design/Renogy%20Rover%20LI%20Raspberry%20pi%20pico%20-%20Cover.stl)**: Archivo STL de la tapa de la caja
+- **[Renogy Rover LI Raspberry pi pico.3mf](3d%20Design/Renogy%20Rover%20LI%20Raspberry%20pi%20pico.3mf)**: Archivo 3MF completo con el proyecto
+
+### Características del Diseño
+
+- Diseñado específicamente para alojar la Raspberry Pi Pico y el conversor TTL a RS232
+- Incluye espacios para la conexión de cables
+- Diseño modular con base y tapa separadas
+- Optimizado para impresión 3D
+
+> **Nota**: Estos archivos están listos para imprimir en cualquier impresora 3D compatible con archivos STL o 3MF.
 
 ## Instalación y Configuración
 
@@ -91,7 +132,24 @@ Este proyecto permite monitorizar un controlador solar **Renogy Rover LI** utili
 
 El siguiente diagrama muestra el esquema de conexiones entre la Raspberry Pi Pico y el controlador solar Renogy Rover Li:
 
-![Esquema de Conexiones](docs/images/scheme.png "Esquema de conexiones para la Raspberry Pi Pico")
+### Raspberry Pi Pico a Conversor TTL-RS232
+
+| Raspberry Pi Pico | Conversor TTL-RS232 |
+|-------------------|---------------------|
+| GPIO0 (Pin 1) - TX | RX                 |
+| GPIO1 (Pin 2) - RX | TX                 |
+| 3.3V (Pin 36)     | VCC (si es compatible con 3.3V) |
+| GND (Pin 38)      | GND                 |
+
+### Conversor TTL-RS232 a Renogy Rover Li
+
+| Conversor TTL-RS232 (lado RS232) | Puerto RJ12 Renogy Rover Li |
+|----------------------------------|----------------------------|
+| TX                               | RX (Pin 3 en RJ12)        |
+| RX                               | TX (Pin 4 en RJ12)        |
+| GND                              | GND (Pin 5 en RJ12)       |
+
+> **Nota:** Si tu conversor TTL-RS232 requiere 5V, usa el pin VSYS (Pin 39) o el pin de salida 5V en lugar de 3.3V. El pinout RJ12 puede variar, consulta el manual de tu Renogy Rover Li para confirmar los pines correctos.
 
 Para más detalles sobre las conexiones, consulta la [documentación de conexión](docs/CONNECTION_DIAGRAM.md).
 
@@ -161,8 +219,7 @@ El proyecto incluye scripts de prueba y verificación en el directorio `src/test
 - [Solución para Problemas de Creación de Dispositivo](docs/DEVICE_CREATION_ISSUE_FIX.md): Solución para problemas de creación de dispositivos
 - [Correcciones al Panel de Home Assistant](docs/PANEL_FIXES.md): Solución para problemas con entidades y tarjetas
 
-## Documentación Técnica![2.jpeg](../../Downloads/Solar%20Controller%20rpi%20pico/images/2.jpeg)
-![3.jpeg](../../Downloads/Solar%20Controller%20rpi%20pico/images/3.jpeg)
+## Documentación Técnica
 
 ### Protocolo Modbus
 
@@ -193,3 +250,13 @@ El proyecto se encuentra en un estado funcional y estable. Se han implementado t
 - ✅ Optimización de rendimiento (caché de datos estáticos)
 - ✅ Sincronización de hora con servidor NTP
 - ✅ Monitorización del estado del microcontrolador
+
+## Esquema de Pines - Raspberry Pi Pico
+
+Para facilitar las conexiones del hardware, aquí tienes el esquema completo de pines de la Raspberry Pi Pico:
+
+<p align="center">
+  <img src="docs/images/raspberry-pi-pico-pinout-scheme.jpeg" alt="Esquema de pines Raspberry Pi Pico" width="800">
+</p>
+
+> **Nota**: Este esquema te ayudará a identificar los pines correctos para las conexiones del conversor RS232, LEDs externos y cualquier otra conexión necesaria para el proyecto.
