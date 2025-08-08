@@ -161,7 +161,8 @@ El proyecto incluye scripts de prueba y verificación en el directorio `src/test
 - [Solución para Problemas de Creación de Dispositivo](docs/DEVICE_CREATION_ISSUE_FIX.md): Solución para problemas de creación de dispositivos
 - [Correcciones al Panel de Home Assistant](docs/PANEL_FIXES.md): Solución para problemas con entidades y tarjetas
 
-## Documentación Técnica
+## Documentación Técnica![2.jpeg](../../Downloads/Solar%20Controller%20rpi%20pico/images/2.jpeg)
+![3.jpeg](../../Downloads/Solar%20Controller%20rpi%20pico/images/3.jpeg)
 
 ### Protocolo Modbus
 
