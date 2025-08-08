@@ -1,10 +1,10 @@
-# API and Home Assistant Data Format Documentation
+# Documentación del Formato de Datos para API y Home Assistant
 
-This document describes the data formats used when sending data to the API and Home Assistant from the Raspberry Pi Pico monitoring the Renogy Rover Li solar controller.
+Este documento describe los formatos de datos utilizados al enviar información a la API y Home Assistant desde la Raspberry Pi Pico que monitoriza el controlador solar Renogy Rover Li.
 
-## API Data Format
+## Formato de Datos de la API
 
-When sending data to the API, the following JSON structure is used:
+Al enviar datos a la API, se utiliza la siguiente estructura JSON:
 
 ```json
 {
@@ -25,108 +25,108 @@ When sending data to the API, the following JSON structure is used:
 }
 ```
 
-Note: The above is a simplified example.
+Nota: El ejemplo anterior es una versión simplificada.
 
-### Microcontroller Data Fields
+### Campos de Datos del Microcontrolador
 
-The `microcontroller` object contains information about the Raspberry Pi Pico:
+El objeto `microcontroller` contiene información sobre la Raspberry Pi Pico:
 
-| Field | Type | Description |
+| Campo | Tipo | Descripción |
 |-------|------|-------------|
-| `temperature` | float | CPU temperature in degrees Celsius |
-| `wifi_connected` | boolean | Whether WiFi is connected |
-| `wifi_signal_strength` | integer | WiFi signal strength in dBm (only if connected) |
-| `battery_percentage` | float | Battery charge percentage (only if external battery monitoring is configured) |
-| `battery_voltage` | float | Battery voltage in volts (only if external battery monitoring is configured) |
+| `temperature` | float | Temperatura de la CPU en grados Celsius |
+| `wifi_connected` | boolean | Si el WiFi está conectado |
+| `wifi_signal_strength` | integer | Intensidad de la señal WiFi en dBm (solo si está conectado) |
+| `battery_percentage` | float | Porcentaje de carga de la batería (solo si está configurado el monitoreo de batería externa) |
+| `battery_voltage` | float | Voltaje de la batería en voltios (solo si está configurado el monitoreo de batería externa) |
 
-### Solar Controller Data Fields
+### Campos de Datos del Controlador Solar
 
-The `data` object contains information from the Renogy Rover Li solar controller. The following fields are included:
+El objeto `data` contiene información del controlador solar Renogy Rover Li. Se incluyen los siguientes campos:
 
-#### System Information
+#### Información del Sistema
 
-| Field | Type | Description |
+| Campo | Tipo | Descripción |
 |-------|------|-------------|
-| `system_voltage` | float | System voltage (V) |
-| `system_current` | float | System current (A) |
-| `hardware_version` | string | Hardware version of the controller |
-| `software_version` | string | Software version of the controller |
-| `serial_number` | string | Serial number of the controller |
+| `system_voltage` | float | Voltaje del sistema (V) |
+| `system_current` | float | Corriente del sistema (A) |
+| `hardware_version` | string | Versión de hardware del controlador |
+| `software_version` | string | Versión de software del controlador |
+| `serial_number` | string | Número de serie del controlador |
 
-#### Battery Information
+#### Información de la Batería
 
-| Field | Type | Description |
+| Campo | Tipo | Descripción |
 |-------|------|-------------|
-| `battery_percentage` | float | Battery state of charge (%) |
-| `battery_voltage` | float | Battery voltage (V) |
-| `battery_temperature` | float | Battery temperature (°C) |
-| `battery_type` | string | Type of battery |
-| `battery_capacity` | float | Nominal battery capacity (Ah) |
+| `battery_percentage` | float | Estado de carga de la batería (%) |
+| `battery_voltage` | float | Voltaje de la batería (V) |
+| `battery_temperature` | float | Temperatura de la batería (°C) |
+| `battery_type` | string | Tipo de batería |
+| `battery_capacity` | float | Capacidad nominal de la batería (Ah) |
 
-#### Solar Panel Information
+#### Información del Panel Solar
 
-| Field | Type | Description |
+| Campo | Tipo | Descripción |
 |-------|------|-------------|
-| `solar_voltage` | float | Solar panel voltage (V) |
-| `solar_current` | float | Solar panel current (A) |
-| `solar_power` | float | Solar panel power (W) |
+| `solar_voltage` | float | Voltaje del panel solar (V) |
+| `solar_current` | float | Corriente del panel solar (A) |
+| `solar_power` | float | Potencia del panel solar (W) |
 
-#### Load Information
+#### Información de la Carga
 
-| Field | Type | Description |
+| Campo | Tipo | Descripción |
 |-------|------|-------------|
-| `load_voltage` | float | Load voltage (V) |
-| `load_current` | float | Load current (A) |
-| `load_power` | float | Load power (W) |
+| `load_voltage` | float | Voltaje de la carga (V) |
+| `load_current` | float | Corriente de la carga (A) |
+| `load_power` | float | Potencia de la carga (W) |
 
-#### Controller Information
+#### Información del Controlador
 
-| Field | Type | Description |
+| Campo | Tipo | Descripción |
 |-------|------|-------------|
-| `controller_temperature` | float | Controller temperature (°C) |
-| `charging_status` | integer | Charging status code |
-| `charging_status_label` | string | Charging status description |
+| `controller_temperature` | float | Temperatura del controlador (°C) |
+| `charging_status` | integer | Código de estado de carga |
+| `charging_status_label` | string | Descripción del estado de carga |
 
-#### Daily Statistics
+#### Estadísticas Diarias
 
-| Field | Type | Description |
+| Campo | Tipo | Descripción |
 |-------|------|-------------|
-| `today_battery_min_voltage` | float | Minimum battery voltage today (V) |
-| `today_battery_max_voltage` | float | Maximum battery voltage today (V) |
-| `today_max_charging_current` | float | Maximum charging current today (A) |
-| `today_max_discharging_current` | float | Maximum discharging current today (A) |
-| `today_max_charging_power` | float | Maximum charging power today (W) |
-| `today_max_discharging_power` | float | Maximum discharging power today (W) |
-| `today_charging_amp_hours` | float | Charging amp hours today (Ah) |
-| `today_discharging_amp_hours` | float | Discharging amp hours today (Ah) |
-| `today_power_generation` | float | Power generation today (Wh) |
-| `today_power_consumption` | float | Power consumption today (Wh) |
+| `today_battery_min_voltage` | float | Voltaje mínimo de la batería hoy (V) |
+| `today_battery_max_voltage` | float | Voltaje máximo de la batería hoy (V) |
+| `today_max_charging_current` | float | Corriente máxima de carga hoy (A) |
+| `today_max_discharging_current` | float | Corriente máxima de descarga hoy (A) |
+| `today_max_charging_power` | float | Potencia máxima de carga hoy (W) |
+| `today_max_discharging_power` | float | Potencia máxima de descarga hoy (W) |
+| `today_charging_amp_hours` | float | Amperios-hora de carga hoy (Ah) |
+| `today_discharging_amp_hours` | float | Amperios-hora de descarga hoy (Ah) |
+| `today_power_generation` | float | Generación de energía hoy (Wh) |
+| `today_power_consumption` | float | Consumo de energía hoy (Wh) |
 
-#### Historical Statistics
+#### Estadísticas Históricas
 
-| Field | Type | Description |
+| Campo | Tipo | Descripción |
 |-------|------|-------------|
-| `historical_total_days_operating` | integer | Total days operating |
-| `historical_total_battery_over_discharges` | integer | Total number of battery over-discharges |
-| `historical_total_battery_full_charges` | integer | Total number of battery full charges |
-| `historical_total_charging_amp_hours` | float | Total charging amp hours (Ah) |
-| `historical_total_discharging_amp_hours` | float | Total discharging amp hours (Ah) |
-| `historical_cumulative_power_generation` | float | Cumulative power generation (kWh) |
-| `historical_cumulative_power_consumption` | float | Cumulative power consumption (kWh) |
+| `historical_total_days_operating` | integer | Total de días en funcionamiento |
+| `historical_total_battery_over_discharges` | integer | Número total de sobredescargas de la batería |
+| `historical_total_battery_full_charges` | integer | Número total de cargas completas de la batería |
+| `historical_total_charging_amp_hours` | float | Total de amperios-hora de carga (Ah) |
+| `historical_total_discharging_amp_hours` | float | Total de amperios-hora de descarga (Ah) |
+| `historical_cumulative_power_generation` | float | Generación acumulativa de energía (kWh) |
+| `historical_cumulative_power_consumption` | float | Consumo acumulativo de energía (kWh) |
 
-## Home Assistant Integration
+## Integración con Home Assistant
 
-When sending data to Home Assistant, each data point is sent as a separate sensor entity. The entity IDs follow this format:
+Al enviar datos a Home Assistant, cada punto de datos se envía como una entidad de sensor separada. Los IDs de entidad siguen este formato:
 
 ```
-sensor.solar_{field_name}
+sensor.solar_{nombre_campo}
 ```
 
-For example, the battery voltage would be sent as `sensor.solar_battery_voltage`.
+Por ejemplo, el voltaje de la batería se enviaría como `sensor.solar_battery_voltage`.
 
-### Sensor Attributes
+### Atributos del Sensor
 
-Each sensor includes the following attributes:
+Cada sensor incluye los siguientes atributos:
 
 ```json
 {
@@ -142,20 +142,20 @@ Each sensor includes the following attributes:
 }
 ```
 
-### Microcontroller Sensors
+### Sensores del Microcontrolador
 
-In addition to the solar controller data, the following sensors are created for the microcontroller:
+Además de los datos del controlador solar, se crean los siguientes sensores para el microcontrolador:
 
-| Entity ID | Description |
-|-----------|-------------|
-| `sensor.microcontroller_temperature` | CPU temperature |
-| `binary_sensor.microcontroller_wifi` | WiFi connection status |
-| `sensor.microcontroller_wifi_signal` | WiFi signal strength |
-| `sensor.microcontroller_battery` | Battery percentage |
+| ID de Entidad | Descripción |
+|---------------|-------------|
+| `sensor.microcontroller_temperature` | Temperatura de la CPU |
+| `binary_sensor.microcontroller_wifi` | Estado de conexión WiFi |
+| `sensor.microcontroller_wifi_signal` | Intensidad de la señal WiFi |
+| `sensor.microcontroller_battery` | Porcentaje de batería |
 
-## Example API Request
+## Ejemplo de Solicitud API
 
-Here's an example of a complete API request:
+Aquí tienes un ejemplo de una solicitud API completa:
 
 ```json
 {
@@ -203,8 +203,8 @@ Here's an example of a complete API request:
 }
 ```
 
-## Notes on Data Availability
+## Notas sobre la Disponibilidad de Datos
 
-- Not all fields may be available in every request. The availability depends on the capabilities of the specific Renogy Rover Li model and the current state of the system.
-- Some fields may be null if the data is not available or could not be read from the controller.
-- The microcontroller battery information will only be included if an external battery is connected and configured for monitoring.
+- No todos los campos pueden estar disponibles en cada solicitud. La disponibilidad depende de las capacidades del modelo específico de Renogy Rover Li y del estado actual del sistema.
+- Algunos campos pueden ser null si los datos no están disponibles o no se pudieron leer del controlador.
+- La información de la batería del microcontrolador solo se incluirá si hay una batería externa conectada y configurada para monitoreo.
