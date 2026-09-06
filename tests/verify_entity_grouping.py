@@ -37,10 +37,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
+import sys
+import time
+
+# Permitir importar variables desde src/ o desde la raíz
+for path in ('src', '.'):
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
 import urequests
 import ujson
-import time
-import sys
 
 # Intento importar variables de entorno desde env.py
 try:

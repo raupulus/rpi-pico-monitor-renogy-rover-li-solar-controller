@@ -74,11 +74,16 @@ Este proyecto permite monitorizar un controlador solar **Renogy Rover LI** utili
 
 ## Contenido del Repositorio
 
-- **src/**: Código fuente del proyecto.
+- **src/**: Código fuente del proyecto que se ejecuta en la placa.
   - **src/Models/**: Modelos/Clases para separar entidades que intervienen.
-  - **src/tests/**: Scripts de prueba y verificación para el proyecto.
-- **docs/**: Documentación adicional, esquemas y guías de instalación.
+- **tests/**: Scripts de prueba y verificación para el proyecto.
+- **docs/**: Documentación técnica completa organizada por el protocolo de documentación:
+  - **docs/info/**: Documentación técnica viva del proyecto ([Índice Maestro](docs/info/README.md)).
+  - **docs/apis/renogy-rover/**: Especificación Modbus RTU oficial y verificada.
+  - **docs/deploys/**: Guías de despliegue para Raspberry Pi Pico y Home Assistant.
+  - **docs/future/**: Propuestas y mejoras acordadas pero aplazadas.
 - **3d Design/**: Archivos de diseño 3D para la caja del microcontrolador.
+- **AGENTS.md**: Contexto, arquitectura, tabla de trampas y reglas para agentes y desarrolladores.
 
 ## Archivos de Diseño 3D
 
@@ -103,30 +108,18 @@ Este proyecto incluye archivos de diseño 3D para crear una caja personalizada q
 
 ### Preparación del Hardware
 
-1. Conecta el conversor TTL a RS232 a la Raspberry Pi Pico según el [diagrama de conexiones](docs/CONNECTION_DIAGRAM.md)
+1. Conecta el conversor TTL a RS232 a la Raspberry Pi Pico según el [Esquema de Conexiones](docs/info/hardware-connections.md)
 2. Conecta el conversor RS232 al controlador solar Renogy Rover Li
 3. Opcionalmente, conecta los LEDs externos a los pines GPIO correspondientes
 
 ### Instalación del Software
 
-1. **Instalación de MicroPython:**
-   - Asegúrate de que MicroPython esté instalado en tu Raspberry Pi Pico
-   - Sigue las instrucciones en la [documentación oficial de MicroPython](https://docs.micropython.org/en/latest/rp2/quickref.html)
-
-2. **Instalación del Proyecto:**
-   - Descarga o clona este repositorio
-   - Copia el archivo `.env.example.py` a `env.py`
-   - Configura las variables en `env.py` según tus necesidades:
-     - Configuración WiFi
-     - Credenciales de la API
-     - Token de Home Assistant (opcional)
-     - Pines GPIO para LEDs (opcional)
-   - Copia todos los archivos de la carpeta `src/` a la Raspberry Pi Pico
-
-3. **Verificación de la Instalación:**
-   - Reinicia la Raspberry Pi Pico
-   - El LED integrado debería encenderse, indicando que el programa está en ejecución
-   - Si configuraste LEDs externos, el LED de encendido debería iluminarse
+1. **Instalación de MicroPython y Carga:**
+   - Sigue la [Guía de Despliegue en Raspberry Pi Pico](docs/deploys/rpi-pico-setup.md).
+2. **Configuración de Entorno:**
+   - Copia el archivo `src/.env.example.py` a `src/env.py` y configura WiFi, tokens y pines serie.
+3. **Despliegue de Código:**
+   - Consulta los comandos detallados en [Comandos y Despliegue](docs/info/commands.md).
 
 ## Diagrama de Conexiones
 
@@ -149,95 +142,51 @@ El siguiente diagrama muestra el esquema de conexiones entre la Raspberry Pi Pic
 | RX                               | TX (Pin 4 en RJ12)        |
 | GND                              | GND (Pin 5 en RJ12)       |
 
-> **Nota:** Si tu conversor TTL-RS232 requiere 5V, usa el pin VSYS (Pin 39) o el pin de salida 5V en lugar de 3.3V. El pinout RJ12 puede variar, consulta el manual de tu Renogy Rover Li para confirmar los pines correctos.
-
-Para más detalles sobre las conexiones, consulta la [documentación de conexión](docs/CONNECTION_DIAGRAM.md).
+> **Nota:** Si tu conversor TTL-RS232 requiere 5V, usa el pin VSYS (Pin 39) o el pin de salida 5V en lugar de 3.3V. Consulta los detalles en [Esquema de Conexiones](docs/info/hardware-connections.md).
 
 ## Indicadores LED
 
 El proyecto soporta tres LEDs externos opcionales para indicar diferentes estados:
 
 1. **LED de Encendido**: Indica que el programa está en ejecución. Permanece encendido mientras el programa está activo.
-2. **LED de Subida**: Indica cuando se están subiendo datos a la API o a Home Assistant. Parpadea durante las operaciones de subida.
+2. **LED de Subida**: Indica cuando se están subiendo datos a la API o a Home Assistant. Se enciende durante las operaciones de subida.
 3. **LED de Ciclo**: Indica cuando se está leyendo datos del controlador solar. Se enciende durante la lectura de datos.
 
 Para configurar estos LEDs, define los siguientes parámetros en tu archivo `env.py`:
 
 ```python
 # Configuración de LEDs externos (opcional)
-# Si no se configuran, el programa funcionará sin usar LEDs externos
 LED_POWER_PIN = 15  # Número de pin GPIO para LED de encendido
 LED_UPLOAD_PIN = 14  # Número de pin GPIO para LED de subida a API/Home Assistant
 LED_CYCLE_PIN = 13  # Número de pin GPIO para LED de trabajo del ciclo
 ```
 
-Si no deseas utilizar alguno de estos LEDs, simplemente no definas la variable correspondiente o asígnale el valor `None`.
-
 ## Integración con Home Assistant
 
-Este proyecto incluye una integración completa con Home Assistant, permitiendo visualizar todos los datos del controlador solar en tu panel de control. La integración está diseñada para agrupar automáticamente todas las entidades bajo un único dispositivo en Home Assistant.
+Este proyecto incluye una integración completa con Home Assistant, permitiendo visualizar todos los datos del controlador solar en tu panel de control agrupados bajo un único dispositivo físico:
 
-### Configuración de Home Assistant
-
-Para configurar Home Assistant con este proyecto:
-
-1. Genera un token de acceso de larga duración en Home Assistant
-2. Configura las variables `UPLOAD_HOME_ASSISTANT`, `HOME_ASSISTANT_URL` y `HOME_ASSISTANT_TOKEN` en tu archivo `env.py`
-3. Reinicia la Raspberry Pi Pico para que comience a enviar datos a Home Assistant
-4. Sigue las instrucciones detalladas en la [Guía Completa de Configuración de Home Assistant](docs/HOME_ASSISTANT_GUIDE.md)
+- [Guía de Configuración en Home Assistant](docs/deploys/home-assistant-setup.md): Paquetes YAML, medidores de utilidad y paneles Lovelace.
+- [Referencia Técnica de Integración REST](docs/info/apis/home-assistant.md): Detalles del endpoint y estructura de entidades.
 
 ### Herramientas de Prueba y Verificación
 
-El proyecto incluye scripts de prueba y verificación en el directorio `src/tests/`:
+El proyecto incluye scripts en el directorio `tests/`:
 
 1. **Verificación de Entidades** (`verify_entity_grouping.py`):
-   - Verifica que todas las entidades existen en Home Assistant
-   - Comprueba si las entidades están correctamente agrupadas
-   - Corrige automáticamente problemas de agrupación
-   - Proporciona un resumen detallado del estado de las entidades
-
-   Para usar esta herramienta, ejecuta el siguiente código en tu Raspberry Pi Pico:
-   ```python
-   from tests import verify_entity_grouping
-   ```
-
+   - Verifica que todas las entidades existen en Home Assistant y valida su agrupación bajo el dispositivo correspondiente.
 2. **Prueba de Creación de Dispositivo** (`test_device_creation.py`):
-   - Verifica que el dispositivo se crea correctamente en Home Assistant
-   - Comprueba la comunicación con Home Assistant
-   - Muestra información detallada sobre el dispositivo creado
-
-   Para usar esta herramienta, ejecuta el siguiente código en tu Raspberry Pi Pico:
-   ```python
-   from tests import test_device_creation
-   ```
-
-> **Nota**: Estos scripts están diseñados para ejecutarse en la Raspberry Pi Pico con los archivos del proyecto ya cargados, no en un entorno de desarrollo local.
-
-### Documentación Adicional de Home Assistant
-
-- [Guía Completa de Configuración](docs/HOME_ASSISTANT_GUIDE.md): Instrucciones detalladas para configurar Home Assistant
-- [Solución para Problemas de Creación de Dispositivo](docs/DEVICE_CREATION_ISSUE_FIX.md): Solución para problemas de creación de dispositivos
-- [Correcciones al Panel de Home Assistant](docs/PANEL_FIXES.md): Solución para problemas con entidades y tarjetas
+   - Comprueba la conectividad y la creación inicial del dispositivo en Home Assistant.
 
 ## Documentación Técnica
 
-### Protocolo Modbus
-
-El controlador solar Renogy Rover Li utiliza el protocolo Modbus RTU sobre RS232 para la comunicación. Para entender cómo comunicarse con el controlador a nivel de protocolo, consulta la siguiente documentación:
-
-- [Protocolo Modbus para Renogy Rover Li](docs/MODBUS_PROTOCOL.md): Documentación detallada sobre el protocolo Modbus, incluyendo direcciones de registros, tipos de datos, interpretación de valores y ejemplos de comandos y respuestas.
-
-Esta documentación es especialmente útil si estás:
-- Implementando tu propia solución para comunicarte con el controlador
-- Depurando problemas de comunicación
-- Extendiendo la funcionalidad del proyecto para leer registros adicionales
-- Interesado en entender cómo funciona la comunicación a bajo nivel
+- **[Índice Maestro de Documentación Viva](docs/info/README.md)**: Módulos, arquitectura, decisiones y comandos.
+- **[Especificación Modbus Renogy Rover Li](docs/apis/renogy-rover/README.md)**: Fundamentos, erratas, limitaciones y mapa de registros.
+- **[Instrucciones para Agentes y Desarrolladores](AGENTS.md)**: Gotchas, trampas técnicas de MicroPython y protocolo de documentación.
 
 ## Licencia
 
 Este proyecto está licenciado bajo la Licencia GPLv3. Consulta el archivo 
-LICENSE para más detalles.
-
+[LICENSE](LICENSE) para más detalles.
 
 ## Estado del Proyecto
 
@@ -253,10 +202,6 @@ El proyecto se encuentra en un estado funcional y estable. Se han implementado t
 
 ## Esquema de Pines - Raspberry Pi Pico
 
-Para facilitar las conexiones del hardware, aquí tienes el esquema completo de pines de la Raspberry Pi Pico:
-
 <p align="center">
   <img src="docs/images/raspberry-pi-pico-pinout-scheme.jpeg" alt="Esquema de pines Raspberry Pi Pico" width="800">
 </p>
-
-> **Nota**: Este esquema te ayudará a identificar los pines correctos para las conexiones del conversor RS232, LEDs externos y cualquier otra conexión necesaria para el proyecto.

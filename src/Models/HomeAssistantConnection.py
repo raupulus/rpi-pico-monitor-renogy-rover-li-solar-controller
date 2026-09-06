@@ -14,7 +14,7 @@
 # Description: Clase de conexión a Home Assistant para enviar datos a Home Assistant
 #              utilizando la API REST desde una Raspberry Pi Pico con MicroPython.
 #
-# Dependencies: MicroPython, urequests, ujson
+# Dependencies: MicroPython, urequests, ujson, gc, time
 #
 # Revision 0.01 - File Created
 # Additional Comments: Esta implementación incluye mecanismo de reintento y manejo de errores
@@ -40,6 +40,7 @@
 import urequests
 import ujson
 import time
+import gc
 
 # Configuraciones predeterminadas
 DEFAULT_RETRIES = 3
@@ -141,6 +142,7 @@ class HomeAssistantConnection:
         Returns:
             bool: True si Home Assistant es accesible, False en caso contrario
         """
+        response = None
         try:
             url = f"{self.URL}/api/"
             headers = self._get_headers()
@@ -160,6 +162,13 @@ class HomeAssistantConnection:
             if self.DEBUG:
                 print(f"Error al conectar con Home Assistant: {e}")
             return False
+        finally:
+            if response is not None:
+                try:
+                    response.close()
+                except Exception:
+                    pass
+            gc.collect()
     
     def update_sensor(self, entity_id, state, attributes=None):
         """
@@ -174,6 +183,7 @@ class HomeAssistantConnection:
             bool: True si fue exitoso, False en caso contrario
         """
         for attempt in range(self.RETRIES):
+            response = None
             try:
                 url = f"{self.URL}{self.API_STATES_ENDPOINT}{entity_id}"
                 headers = self._get_headers()
@@ -217,6 +227,13 @@ class HomeAssistantConnection:
                 # Espero antes de reintentar con retroceso exponencial
                 wait_time = self.BACKOFF_FACTOR * (2 ** attempt)
                 time.sleep(wait_time)
+            finally:
+                if response is not None:
+                    try:
+                        response.close()
+                    except Exception:
+                        pass
+                gc.collect()
         
         # Todos los reintentos fallaron
         return False
@@ -480,6 +497,7 @@ class HomeAssistantConnection:
         device_identifier = self.device_info["identifiers"][0]
         entity_id = f"sensor.{device_identifier}_device"
         
+        response = None
         try:
             url = f"{self.URL}{self.API_STATES_ENDPOINT}{entity_id}"
             headers = self._get_headers()
@@ -497,6 +515,13 @@ class HomeAssistantConnection:
             if self.DEBUG:
                 print(f"Error al verificar si existe el dispositivo: {e}")
             return False
+        finally:
+            if response is not None:
+                try:
+                    response.close()
+                except Exception:
+                    pass
+            gc.collect()
     
     def create_device_entity(self):
         """

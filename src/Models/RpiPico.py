@@ -1,6 +1,7 @@
 from machine import ADC, Pin, SPI, I2C, deepsleep
 import network
 from time import sleep_ms
+import time
 
 # Constants
 WIFI_DISCONNECTED = 0
@@ -129,12 +130,12 @@ class RpiPico:
         # Factor de conversión de 16 bits para corregir ADC.
         self.adc_conversion_factor = self.voltage_working / 65535
 
-        # Si se proporcionan credenciales del AP intenta la conexión
+        # Si se proporcionan credenciales del AP intenta la conexión inicial (con timeout)
         if ssid and password:
             if self.DEBUG:
                 print('Iniciando la conexión inalámbrica')
 
-            self.wifi_connect(ssid, password)
+            self.wifi_connect(ssid, password, timeout=15)
 
         sleep_ms(100)
 
@@ -431,73 +432,99 @@ class RpiPico:
 
     def wifi_status (self) -> int:
         """
-        Obtiene el estado de la conexión Wi-Fi.
+        Obtiene el estado de la conexión Wi-Fi de forma segura.
 
         Returns:
             int: Constante que indica el estado de la conexión Wi-Fi.
         """
-        return self.wifi.status() if self.wifi else WIFI_DISCONNECTED
+        try:
+            return self.wifi.status() if self.wifi else WIFI_DISCONNECTED
+        except Exception:
+            return WIFI_DISCONNECTED
 
     def wifi_is_connected (self) -> bool:
         """
-        Comprueba si el Wi-Fi está conectado.
+        Comprueba de forma segura si el Wi-Fi está conectado y operativo con IP asignada.
 
         Returns:
             bool: True si está conectado, False en caso contrario.
         """
-        return bool(
-            self.wifi and self.wifi.isconnected() and self.wifi.status() == WIFI_CONNECTED)
+        try:
+            return bool(
+                self.wifi and self.wifi.isconnected() and self.wifi.status() == WIFI_CONNECTED)
+        except Exception:
+            return False
 
     def get_wireless_mac(self) -> str:
         """
         Convierte la dirección MAC a formato legible y la devuelve.
-        :return:
+        :return: str
         """
-        import ubinascii
-
-        return ubinascii.hexlify(network.WLAN().config('mac'), ':').decode()
+        try:
+            import ubinascii
+            return ubinascii.hexlify(network.WLAN().config('mac'), ':').decode()
+        except Exception:
+            return ""
 
     def get_wireless_ssid(self) -> str:
         """
         Devuelve el SSID al que se ha conectado.
-        :return:
+        :return: str
         """
-        return self.wifi.config('essid')
+        try:
+            return self.wifi.config('essid') if self.wifi else ""
+        except Exception:
+            return ""
 
     def get_wireless_ip(self) -> str:
         """
         Devuelve la ip de la conexión actual.
-        :return:
+        :return: str
         """
-        return self.wifi.ifconfig()[0]
+        try:
+            return self.wifi.ifconfig()[0] if self.wifi and self.wifi_is_connected() else "0.0.0.0"
+        except Exception:
+            return "0.0.0.0"
 
     def get_wireless_hostname(self) -> str:
         """
         Devuelve el nombre de host en la red.
-        :return:
+        :return: str
         """
-        return self.wifi.config('hostname')
+        try:
+            return self.wifi.config('hostname') if self.wifi else self.hostname
+        except Exception:
+            return self.hostname
 
     def get_wireless_txpower(self) -> int:
         """
         Devuelve la potencia de transmisión configurada actualmente por la rpi.
-        :return:
+        :return: int
         """
-        return self.wifi.config('txpower')
+        try:
+            return self.wifi.config('txpower') if self.wifi else 0
+        except Exception:
+            return 0
 
     def get_wireless_rssi(self) -> int:
         """
-        Devuelve la potencia de transmisión del router.
-        :return:
+        Devuelve la potencia de transmisión del router (RSSI).
+        :return: int
         """
-        return self.wifi.status('rssi')
+        try:
+            return self.wifi.status('rssi') if self.wifi and self.wifi_is_connected() else 0
+        except Exception:
+            return 0
 
     def get_wireless_channel(self) -> int:
         """
         Devuelve el canal de comunicación con el router.
-        :return:
+        :return: int
         """
-        return self.wifi.config('channel')
+        try:
+            return self.wifi.config('channel') if self.wifi else 0
+        except Exception:
+            return 0
 
     def wifi_debug (self) -> None:
         """
@@ -513,52 +540,124 @@ class RpiPico:
         print('Canal de Wi-fi: ', self.get_wireless_channel())
         print('RSSI: ', self.get_wireless_rssi())
 
-    def wifi_connect (self, ssid=None, password=None) -> bool:
+    def wifi_connect(self, ssid=None, password=None, timeout=15) -> bool:
         """
-        Intenta conectar a Wi-Fi con las credenciales dadas.
+        Intenta conectar a Wi-Fi de forma no bloqueante con tiempo límite.
+        Recicla la interfaz WLAN para evitar estados residuales en el chip CYW43439.
 
         Args:
-            ssid (str): ID de red para la conexión Wi-Fi.
-            password (str): Contraseña para la conexión Wi-Fi.
+            ssid (str): ID de red para la conexión Wi-Fi (opcional).
+            password (str): Contraseña para la conexión Wi-Fi (opcional).
+            timeout (int): Tiempo máximo de espera en segundos por intento.
 
-        Retorno:
-            bool: True si se logra conectarse, False en caso contrario.
+        Returns:
+            bool: True si logra conectarse, False en caso contrario.
         """
-        if ssid is None and password is None:
-            ssid, password = self.SSID, self.PASSWORD
+        target_ssid = ssid if ssid is not None else self.SSID
+        target_password = password if password is not None else self.PASSWORD
 
-        self.wifi = network.WLAN(network.STA_IF)
-        self.wifi.active(True)
+        if not target_ssid:
+            if self.DEBUG:
+                print("Aviso: No hay SSID configurado para WiFi.")
+            return False
 
-        # Establezco el nombre del host
-        network.hostname(self.hostname)
+        if self.wifi is None:
+            self.wifi = network.WLAN(network.STA_IF)
 
-        # Desactivo el ahorro de energía
-        self.wifi.config(pm=0xa11140)
+        # Si ya está conectado y con IP válida, no hace falta reconectar
+        if self.wifi_is_connected():
+            return True
 
-        while not self.wifi_is_connected():
-            # Escaneo las redes disponibles
-            available_ssids = self.wifi.scan()
-            available_ssids = [ap[0].decode('utf-8') for ap in available_ssids]
+        # Desconectar y reciclar la interfaz para purgar estados congelados de radio
+        try:
+            self.wifi.disconnect()
+        except Exception:
+            pass
 
-            # Si la red principal se encuentra disponible, intenta conectar a ella
-            if self.SSID in available_ssids:
-                self.wifi.connect(self.SSID, self.PASSWORD)
-            else:
-                # Si no esta la red principal, intenta conectar a las redes secundarias disponibles
-                for ap in self.alternatives_ap:
-                    if ap['ssid'] in available_ssids:
-                        self.wifi.connect(ap['ssid'], ap['password'])
+        try:
+            self.wifi.active(False)
+            sleep_ms(200)
+            self.wifi.active(True)
+            sleep_ms(100)
 
-            sleep_ms(1000)
+            # Restablecer hostname
+            network.hostname(self.hostname)
 
-            if self.wifi_is_connected():
+            # Desactivar ahorro de energía (previene caídas silenciosas en Pico W)
+            self.wifi.config(pm=0xa11140)
+        except Exception as e:
+            if self.DEBUG:
+                print(f"Error al restablecer interfaz WiFi: {e}")
+
+        # Lista de redes a probar: primero la principal, luego las alternativas
+        networks_to_try = [(target_ssid, target_password)]
+
+        if self.alternatives_ap and isinstance(self.alternatives_ap, (list, tuple)):
+            for ap in self.alternatives_ap:
+                if isinstance(ap, dict) and ap.get('ssid') and ap.get('password'):
+                    if ap['ssid'] != target_ssid:
+                        networks_to_try.append((ap['ssid'], ap['password']))
+
+        for net_ssid, net_pass in networks_to_try:
+            if self.DEBUG:
+                print(f"Intentando conectar a WiFi '{net_ssid}' (timeout {timeout}s)...")
+
+            try:
+                self.wifi.connect(net_ssid, net_pass)
+            except Exception as e:
                 if self.DEBUG:
-                    self.wifi_debug()
+                    print(f"Excepción al iniciar conexión a '{net_ssid}': {e}")
+                continue
 
-                return True
+            # Esperar a que se asocie y obtenga IP
+            start_ms = time.ticks_ms()
+            timeout_ms = timeout * 1000
+
+            while time.ticks_diff(time.ticks_ms(), start_ms) < timeout_ms:
+                if self.wifi_is_connected():
+                    if self.DEBUG:
+                        print(f"Conexión WiFi exitosa a '{net_ssid}'. IP: {self.get_wireless_ip()}")
+                        self.wifi_debug()
+                    return True
+
+                status = self.wifi_status()
+                # Códigos de error definitivos en CYW43 (< 0 indica fallo irrecuperable de autenticación/enlace)
+                if status < 0:
+                    if self.DEBUG:
+                        print(f"Fallo de enlace reportado por chip WiFi para '{net_ssid}': status={status}")
+                    break
+
+                sleep_ms(500)
+
+            # Si no conectó en esta red, desconectamos antes de probar la siguiente
+            try:
+                self.wifi.disconnect()
+            except Exception:
+                pass
+
+        if self.DEBUG:
+            print("No se pudo conectar a ninguna red WiFi en este ciclo.")
 
         return False
+
+    def ensure_wifi_connected(self, timeout=15) -> bool:
+        """
+        Garantiza que la conexión WiFi esté activa y con IP válida.
+        Si se ha perdido el enlace, intenta reconectar de forma no bloqueante.
+
+        Args:
+            timeout (int): Segundos de espera máxima para la asociación.
+
+        Returns:
+            bool: True si el WiFi está activo, False si sigue desconectado.
+        """
+        if self.wifi_is_connected():
+            return True
+
+        if self.DEBUG:
+            print("Enlace WiFi inactivo o perdido. Iniciando reconexión limpia...")
+
+        return self.wifi_connect(timeout=timeout)
 
     def wireless_info (self):
         info_client = [
@@ -607,7 +706,11 @@ class RpiPico:
 
         :return: None
         """
-        self.wifi.disconnect()
+        try:
+            if self.wifi:
+                self.wifi.disconnect()
+        except Exception:
+            pass
 
     def read_analog_input (self, pin) -> float:
         """

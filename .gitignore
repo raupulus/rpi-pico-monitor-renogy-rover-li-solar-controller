@@ -148,3 +148,6 @@ dmypy.json
 
 # Others
 /tmp
+# Ephemeral Documentation
+/docs/planning/
+/docs/auditorias/

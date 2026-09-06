@@ -36,21 +36,26 @@ WIFI_ALTERNATIVES = [
     }
 ]
 
-# ID del dispositivo (utilizado para la API e identificación)
+# Parámetros de reconexión y watchdog WiFi (opcional)
+WIFI_CONNECT_TIMEOUT = 15  # Segundos máximos de espera para asociar WiFi en cada ciclo
+MAX_OFFLINE_CYCLES = 15    # Ciclos consecutivos sin conexión antes de reiniciar la placa por seguridad
+
+# ID del dispositivo (utilizado para hardware_device_id en la API e identificación)
 DEVICE_ID = 1
 
-# Configuración de la API
-UPLOAD_API = True  # Lo configuro a False para desactivar las subidas a la API
+# Configuración de la API V2 (Energía - Controlador Solar)
+# Requiere token Bearer con la ability 'energy:write'
+UPLOAD_API = True  # Configurar en False para desactivar las subidas a la API
 API_URL = "https://api.example.com"  # URL base de la API
-API_PATH = "/hardware/v1/solarcharge/store"  # Ruta al endpoint de la API
-API_TOKEN = "your_api_token"  # Token de autenticación para la API
+API_PATH = "/api/v2/energy/solar-readings"  # Ruta al endpoint de subida de telemetría solar
+API_TOKEN = "your_api_token"  # Token Sanctum con ability 'energy:write'
 
 # Configuración de Home Assistant
-UPLOAD_HOME_ASSISTANT = False  # Lo configuro a False para desactivar las subidas a Home Assistant
+UPLOAD_HOME_ASSISTANT = False  # Configurar en False para desactivar las subidas a Home Assistant
 HOME_ASSISTANT_URL = "http://homeassistant.local:8123"  # URL de Home Assistant
 HOME_ASSISTANT_TOKEN = "your_long_lived_access_token"  # Token de acceso de larga duración
 
-# Configuración de la conexión serial
+# Configuración de la conexión serial Modbus RTU
 SERIAL_TX_PIN = 0  # Número de pin GPIO para TX (UART0 TX es GPIO0)
 SERIAL_RX_PIN = 1  # Número de pin GPIO para RX (UART0 RX es GPIO1)
 
@@ -58,7 +63,7 @@ SERIAL_RX_PIN = 1  # Número de pin GPIO para RX (UART0 RX es GPIO1)
 SLEEP_TIME = 60  # Tiempo de espera entre lecturas en segundos
 
 # Configuración de batería externa (opcional)
-# Si tengo una batería externa conectada a un pin ADC
+# Si se dispone de una batería externa conectada a un pin ADC
 # BATTERY_ADC_PIN = 26  # Número de pin ADC para monitoreo de batería
 # BATTERY_MIN_VOLTAGE = 2.5  # Voltaje mínimo de la batería
 # BATTERY_MAX_VOLTAGE = 4.2  # Voltaje máximo de la batería

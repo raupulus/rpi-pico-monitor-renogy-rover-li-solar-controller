@@ -36,22 +36,27 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
+import sys
+import time
+
+# Permitir importar módulos desde src/ o desde la raíz
+for path in ('src', '.'):
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
 from Models.HomeAssistantConnection import HomeAssistantConnection
 from Models.RpiPico import RpiPico
-import time
 
 # Intento importar variables de entorno desde env.py
 try:
     import env
 except ImportError:
     print("Error: env.py no encontrado. Este script requiere la configuración de Home Assistant.")
-    import sys
     sys.exit(1)
 
 # Verifico que las variables necesarias estén definidas
 if not hasattr(env, 'HOME_ASSISTANT_URL') or not hasattr(env, 'HOME_ASSISTANT_TOKEN'):
     print("Error: HOME_ASSISTANT_URL y HOME_ASSISTANT_TOKEN deben estar definidos en env.py")
-    import sys
     sys.exit(1)
 
 # Configuración

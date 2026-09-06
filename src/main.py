@@ -63,9 +63,11 @@ except ImportError:
         'WIFI_PASSWORD': None,
         'WIFI_COUNTRY': 'ES',
         'WIFI_ALTERNATIVES': None,
+        'WIFI_CONNECT_TIMEOUT': 15,
+        'MAX_OFFLINE_CYCLES': 15,
         'DEVICE_ID': 1,
         'API_URL': None,
-        'API_PATH': None,
+        'API_PATH': '/api/v2/energy/solar-readings',
         'API_TOKEN': None,
         'UPLOAD_API': False,
         'HOME_ASSISTANT_URL': None,
@@ -90,10 +92,14 @@ SLEEP_TIME = env.SLEEP_TIME if hasattr(env, 'SLEEP_TIME') else 60
 SERIAL_TX_PIN = env.SERIAL_TX_PIN if hasattr(env, 'SERIAL_TX_PIN') else 0
 SERIAL_RX_PIN = env.SERIAL_RX_PIN if hasattr(env, 'SERIAL_RX_PIN') else 1
 
+# Parámetros de reconexión y tolerancia a fallos WiFi
+WIFI_CONNECT_TIMEOUT = env.WIFI_CONNECT_TIMEOUT if hasattr(env, 'WIFI_CONNECT_TIMEOUT') else 15
+MAX_OFFLINE_CYCLES = env.MAX_OFFLINE_CYCLES if hasattr(env, 'MAX_OFFLINE_CYCLES') else 15
+
 # Configuración para subida a la API
 UPLOAD_API = env.UPLOAD_API if hasattr(env, 'UPLOAD_API') else False
 API_URL = env.API_URL if hasattr(env, 'API_URL') else None
-API_PATH = env.API_PATH if hasattr(env, 'API_PATH') else None
+API_PATH = env.API_PATH if hasattr(env, 'API_PATH') else '/api/v2/energy/solar-readings'
 API_TOKEN = env.API_TOKEN if hasattr(env, 'API_TOKEN') else None
 
 # Configuración para subida a Home Assistant
@@ -141,8 +147,9 @@ def sleep_pause(seconds):
     if DEBUG:
         print(f"Pausando durante {seconds} segundos...")
     
-    # Uso una pausa simple en lugar de light_sleep
-    time.sleep(seconds)
+    # Pauso en intervalos de 1 segundo para mantener la estabilidad del bucle
+    for _ in range(seconds):
+        time.sleep(1)
 
 def collect_garbage():
     """
@@ -215,11 +222,35 @@ def loop():
         debug=DEBUG
     )
     
+    # Contador de ciclos consecutivos sin conectividad WiFi
+    offline_cycles = 0
+
     while True:
         try:
             if DEBUG:
                 print("Iniciando ciclo de recolección de datos...")
             
+            # Verificación y reconexión WiFi activa si se requiere red
+            if UPLOAD_API or UPLOAD_HOME_ASSISTANT:
+                wifi_ok = rpi_pico.ensure_wifi_connected(timeout=WIFI_CONNECT_TIMEOUT)
+                if not wifi_ok:
+                    offline_cycles += 1
+                    if DEBUG:
+                        print(f"Aviso: Sin conexión WiFi (ciclo offline {offline_cycles}/{MAX_OFFLINE_CYCLES})")
+                    
+                    # Si persiste offline durante demasiados ciclos consecutivos (~15-25 min),
+                    # reiniciamos el microcontrolador para limpiar el chip CYW43 y el stack de red
+                    if offline_cycles >= MAX_OFFLINE_CYCLES:
+                        print(f"Alcanzado el límite de {MAX_OFFLINE_CYCLES} ciclos consecutivos sin WiFi. Reiniciando microcontrolador por seguridad...")
+                        time.sleep(2)
+                        machine.reset()
+                else:
+                    if offline_cycles > 0:
+                        if DEBUG:
+                            print(f"WiFi restablecido tras {offline_cycles} ciclos offline. Sincronizando hora...")
+                        sync_time()
+                        offline_cycles = 0
+
             # Enciendo el LED de ciclo para indicar que estoy leyendo datos
             rpi_pico.led_cycle_on()
             
@@ -245,74 +276,82 @@ def loop():
             
             # Subo a la API si está habilitada
             if api and UPLOAD_API:
-                if DEBUG:
-                    print("Subiendo datos a la API...")
-                
-                # Enciendo el LED de subida durante la comunicación con la API
-                rpi_pico.led_upload_on()
-                
-                success = api.send_to_api(params)
-                
-                # Apago el LED de subida después de la comunicación con la API
-                rpi_pico.led_upload_off()
-                
-                if DEBUG:
-                    if success:
-                        print("Datos subidos a la API correctamente")
-                    else:
-                        print("Error al subir datos a la API")
+                if not rpi_pico.wifi_is_connected():
+                    if DEBUG:
+                        print("Omitiendo subida a la API: sin conexión WiFi")
+                else:
+                    if DEBUG:
+                        print("Subiendo datos a la API...")
+                    
+                    # Enciendo el LED de subida durante la comunicación con la API
+                    rpi_pico.led_upload_on()
+                    
+                    success = api.send_to_api(params)
+                    
+                    # Apago el LED de subida después de la comunicación con la API
+                    rpi_pico.led_upload_off()
+                    
+                    if DEBUG:
+                        if success:
+                            print("Datos subidos a la API correctamente")
+                        else:
+                            print("Error al subir datos a la API")
             
             # Subo a Home Assistant si está habilitado
             if home_assistant and UPLOAD_HOME_ASSISTANT:
-                if DEBUG:
-                    print("Subiendo datos a Home Assistant...")
-                
-                # Enciendo el LED de subida durante la comunicación con Home Assistant
-                rpi_pico.led_upload_on()
-                
-                # Primero verifico si Home Assistant es accesible
-                if home_assistant.check_connection():
-                    # Primero creo una entidad dedicada para el dispositivo
-                    device_created = home_assistant.create_device_entity()
-                    
-                    # Verifico si el dispositivo existe en Home Assistant
-                    device_exists = home_assistant.verify_device_exists()
-                    
+                if not rpi_pico.wifi_is_connected():
                     if DEBUG:
-                        if device_exists:
-                            print("El dispositivo 'Controlador Solar Renogy Rover Li' existe en Home Assistant")
-                        else:
-                            print("ADVERTENCIA: El dispositivo 'Controlador Solar Renogy Rover Li' NO existe en Home Assistant")
-                            print("Intentando crear el dispositivo nuevamente...")
-                            # Intento crear el dispositivo nuevamente si no existe
-                            device_created = home_assistant.create_device_entity()
-                            # Verifico nuevamente si el dispositivo existe
-                            device_exists = home_assistant.verify_device_exists()
-                            if not device_exists:
-                                print("ERROR: No se pudo crear el dispositivo en Home Assistant")
-                    
-                    # Solo actualizo los sensores si el dispositivo existe
-                    if device_exists:
-                        # Actualizo datos del controlador solar
-                        success = home_assistant.update_solar_controller_data(params)
-                        
-                        # Actualizo sensores del microcontrolador
-                        home_assistant.update_microcontroller_sensors()
-                        
-                        if DEBUG:
-                            if success:
-                                print("Datos subidos a Home Assistant correctamente")
-                            else:
-                                print("Error al subir datos a Home Assistant")
-                    else:
-                        if DEBUG:
-                            print("No se actualizaron los sensores porque el dispositivo no existe en Home Assistant")
+                        print("Omitiendo subida a Home Assistant: sin conexión WiFi")
                 else:
                     if DEBUG:
-                        print("Home Assistant no es accesible")
-                
-                # Apago el LED de subida después de la comunicación con Home Assistant
-                rpi_pico.led_upload_off()
+                        print("Subiendo datos a Home Assistant...")
+                    
+                    # Enciendo el LED de subida durante la comunicación con Home Assistant
+                    rpi_pico.led_upload_on()
+                    
+                    # Primero verifico si Home Assistant es accesible
+                    if home_assistant.check_connection():
+                        # Primero creo una entidad dedicada para el dispositivo
+                        device_created = home_assistant.create_device_entity()
+                        
+                        # Verifico si el dispositivo existe en Home Assistant
+                        device_exists = home_assistant.verify_device_exists()
+                        
+                        if DEBUG:
+                            if device_exists:
+                                print("El dispositivo 'Controlador Solar Renogy Rover Li' existe en Home Assistant")
+                            else:
+                                print("ADVERTENCIA: El dispositivo 'Controlador Solar Renogy Rover Li' NO existe en Home Assistant")
+                                print("Intentando crear el dispositivo nuevamente...")
+                                # Intento crear el dispositivo nuevamente si no existe
+                                device_created = home_assistant.create_device_entity()
+                                # Verifico nuevamente si el dispositivo existe
+                                device_exists = home_assistant.verify_device_exists()
+                                if not device_exists:
+                                    print("ERROR: No se pudo crear el dispositivo en Home Assistant")
+                        
+                        # Solo actualizo los sensores si el dispositivo existe
+                        if device_exists:
+                            # Actualizo datos del controlador solar
+                            success = home_assistant.update_solar_controller_data(params)
+                            
+                            # Actualizo sensores del microcontrolador
+                            home_assistant.update_microcontroller_sensors()
+                            
+                            if DEBUG:
+                                if success:
+                                    print("Datos subidos a Home Assistant correctamente")
+                                else:
+                                    print("Error al subir datos a Home Assistant")
+                        else:
+                            if DEBUG:
+                                print("No se actualizaron los sensores porque el dispositivo no existe en Home Assistant")
+                    else:
+                        if DEBUG:
+                            print("Home Assistant no es accesible")
+                    
+                    # Apago el LED de subida después de la comunicación con Home Assistant
+                    rpi_pico.led_upload_off()
             
             if DEBUG:
                 print(f"Ciclo completado correctamente")
