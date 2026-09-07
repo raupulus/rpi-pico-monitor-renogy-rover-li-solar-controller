@@ -8,7 +8,7 @@ Documento técnico sobre el contrato y protocolo de comunicación HTTP REST con 
 - **Endpoint de Subida**: `POST /api/v2/energy/solar-readings`
 - **Endpoint de Consulta**: `GET /api/v2/energy/solar-readings`
 - **Autenticación**: Laravel Sanctum, cabecera `Authorization: Bearer <API_TOKEN>`.
-  - **Ability requerida para subida**: `energy:write``.
+  - **Ability requerida para subida**: `energy:write`.
   - **Ability requerida para consulta**: `energy:read`.
   - El token puede estar restringido al dispositivo (`device:{hardware_device_id}`). Un dispositivo ajeno provocará HTTP `422`.
 - **Headers Requeridos**:
@@ -75,8 +75,8 @@ El payload enviado por [`Api.send_to_api()`](../Api.md) estructura los datos nat
   "serial_number": "12345678",
   "battery_type": "lithium",
   "battery_voltage": 13.2,
-  "battery_current": null,
-  "battery_power": null,
+  "battery_current": 4.1,
+  "battery_power": 54.12,
   "battery_percentage": 95,
   "battery_temperature": 24.5,
   "temperature": 32.1,
@@ -121,21 +121,25 @@ El payload enviado por [`Api.send_to_api()`](../Api.md) estructura los datos nat
     "ip_local": "192.168.1.100",
     "extra": {
       "wifi_rssi": -65,
-      "wifi_ssid": "your_wifi_ssid"
+      "wifi_ssid": "your_wifi_ssid",
+      "battery_charging_current": 5.2,
+      "load_switch_status": 1,
+      "fault_code": 0,
+      "faults": ""
     }
   }
 }
 ```
 
 ### Detalle de `hardware_device_info`
-Permite reportar la salud del microcontrolador en la misma petición sin necesidad de la ability `hardware:write` ni llamadas extra:
+Permite reportar la salud del microcontrolador y campos adicionales en la misma petición sin necesidad de la ability `hardware:write` ni llamadas extra:
 - `temp`: Temperatura interna de CPU del RP2040 (°C).
 - `voltage`: Voltaje de batería externa de respaldo medida en pin ADC (V).
 - `battery_level`: Porcentaje de batería externa (0–100%).
 - `ram`: Porcentaje de uso de memoria RAM en MicroPython.
 - `uptime`: Segundos transcurridos desde el encendido de la Raspberry Pi Pico W.
 - `ip_local`: Dirección IP asignada en la red local.
-- `extra`: Diccionario con diagnósticos adicionales de red (`wifi_rssi`, `wifi_ssid`).
+- `extra`: Diccionario con diagnósticos adicionales de red (`wifi_rssi`, `wifi_ssid`) y del regulador solar (`battery_charging_current`, `load_switch_status`, `fault_code`, `faults`).
 
 ---
 
@@ -148,4 +152,4 @@ Permite reportar la salud del microcontrolador en la misma petición sin necesid
    - Errores definitivos de cliente (HTTP 401, 403, 422) abortan inmediatamente los reintentos para no saturar el servidor ni el rate limit.
 
 ---
-> Creado: 2026-09-06 · Última revisión: 2026-09-06
+> Raúl Caro Pastorino · <public@raupulus.dev> · [raupulus.dev](https://raupulus.dev)

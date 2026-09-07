@@ -67,7 +67,8 @@ class RpiPico:
 
     def __init__ (self, ssid=None, password=None, debug=False, country="ES",
                   alternatives_ap=None, hostname="Rpi-Pico-W",
-                  led_power_pin=None, led_upload_pin=None, led_cycle_pin=None):
+                  led_power_pin=None, led_upload_pin=None, led_cycle_pin=None,
+                  battery_adc_pin=None, battery_min_voltage=2.5, battery_max_voltage=4.2):
         """
         Constructor de la clase para Raspberry Pi Pico W.
 
@@ -81,6 +82,9 @@ class RpiPico:
             led_power_pin (int): Número de pin GPIO para LED de encendido. Por defecto None.
             led_upload_pin (int): Número de pin GPIO para LED de subida a API/Home Assistant. Por defecto None.
             led_cycle_pin (int): Número de pin GPIO para LED de trabajo del ciclo. Por defecto None.
+            battery_adc_pin (int): Número de pin GPIO (ADC) para monitorizar batería externa. Por defecto None.
+            battery_min_voltage (float): Tensión mínima de la batería. Por defecto 2.5.
+            battery_max_voltage (float): Tensión máxima de la batería. Por defecto 4.2.
         """
         self.locked = True
         self.DEBUG = debug
@@ -129,6 +133,12 @@ class RpiPico:
 
         # Factor de conversión de 16 bits para corregir ADC.
         self.adc_conversion_factor = self.voltage_working / 65535
+
+        # Inicializo monitoreo de batería externa si se especifica pin ADC
+        if battery_adc_pin is not None:
+            min_v = battery_min_voltage if battery_min_voltage is not None else 2.5
+            max_v = battery_max_voltage if battery_max_voltage is not None else 4.2
+            self.set_external_battery(battery_adc_pin, min_v, max_v)
 
         # Si se proporcionan credenciales del AP intenta la conexión inicial (con timeout)
         if ssid and password:
@@ -658,6 +668,13 @@ class RpiPico:
             print("Enlace WiFi inactivo o perdido. Iniciando reconexión limpia...")
 
         return self.wifi_connect(timeout=timeout)
+
+    def init_wifi(self, timeout=15) -> bool:
+        """
+        Inicializa o asegura la conexión WiFi.
+        Alias de conveniencia para ensure_wifi_connected.
+        """
+        return self.ensure_wifi_connected(timeout=timeout)
 
     def wireless_info (self):
         info_client = [

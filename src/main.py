@@ -17,7 +17,7 @@
 #
 # Dependencies: MicroPython, urequests, ujson, ntptime
 #
-# Revision 0.02 - Adaptado para Raspberry Pi Pico con MicroPython
+# Revision 0.03 - Soporte para optimización de tráfico HA por delta/latido y reconexión WiFi
 #
 # @copyright  Copyright © 2025 Raúl Caro Pastorino
 # @license    https://wwww.gnu.org/licenses/gpl.txt
@@ -73,9 +73,14 @@ except ImportError:
         'HOME_ASSISTANT_URL': None,
         'HOME_ASSISTANT_TOKEN': None,
         'UPLOAD_HOME_ASSISTANT': False,
+        'HA_DELTA_FILTERING': True,
+        'HA_HEARTBEAT_INTERVAL': 600,
+        'HA_STATIC_INTERVAL': 3600,
         'SERIAL_TX_PIN': 0,
         'SERIAL_RX_PIN': 1,
         'SLEEP_TIME': 60,  # Sleep time in seconds
+        'NTP_SYNC_INTERVAL': 86400,  # Sincronización NTP cada 24 horas
+        'HISTORICAL_DATA_INTERVAL': 600,  # Refresco de históricos acumulados cada 10 minutos
     })
 
 #######################################
@@ -96,6 +101,13 @@ SERIAL_RX_PIN = env.SERIAL_RX_PIN if hasattr(env, 'SERIAL_RX_PIN') else 1
 WIFI_CONNECT_TIMEOUT = env.WIFI_CONNECT_TIMEOUT if hasattr(env, 'WIFI_CONNECT_TIMEOUT') else 15
 MAX_OFFLINE_CYCLES = env.MAX_OFFLINE_CYCLES if hasattr(env, 'MAX_OFFLINE_CYCLES') else 15
 
+# Intervalo de sincronización horaria NTP (por defecto 24 horas = 86400s)
+NTP_SYNC_INTERVAL = env.NTP_SYNC_INTERVAL if hasattr(env, 'NTP_SYNC_INTERVAL') else 86400
+last_ntp_sync = 0
+
+# Intervalo de actualización de datos históricos acumulativos (por defecto 10 min = 600s)
+HISTORICAL_DATA_INTERVAL = env.HISTORICAL_DATA_INTERVAL if hasattr(env, 'HISTORICAL_DATA_INTERVAL') else 600
+
 # Configuración para subida a la API
 UPLOAD_API = env.UPLOAD_API if hasattr(env, 'UPLOAD_API') else False
 API_URL = env.API_URL if hasattr(env, 'API_URL') else None
@@ -106,6 +118,9 @@ API_TOKEN = env.API_TOKEN if hasattr(env, 'API_TOKEN') else None
 UPLOAD_HOME_ASSISTANT = env.UPLOAD_HOME_ASSISTANT if hasattr(env, 'UPLOAD_HOME_ASSISTANT') else False
 HOME_ASSISTANT_URL = env.HOME_ASSISTANT_URL if hasattr(env, 'HOME_ASSISTANT_URL') else None
 HOME_ASSISTANT_TOKEN = env.HOME_ASSISTANT_TOKEN if hasattr(env, 'HOME_ASSISTANT_TOKEN') else None
+HA_DELTA_FILTERING = env.HA_DELTA_FILTERING if hasattr(env, 'HA_DELTA_FILTERING') else True
+HA_HEARTBEAT_INTERVAL = env.HA_HEARTBEAT_INTERVAL if hasattr(env, 'HA_HEARTBEAT_INTERVAL') else 600
+HA_STATIC_INTERVAL = env.HA_STATIC_INTERVAL if hasattr(env, 'HA_STATIC_INTERVAL') else 3600
 
 # ID del dispositivo
 DEVICE_ID = env.DEVICE_ID if hasattr(env, 'DEVICE_ID') else 1
@@ -114,18 +129,28 @@ DEVICE_ID = env.DEVICE_ID if hasattr(env, 'DEVICE_ID') else 1
 # #            FUNCIONES            # #
 #######################################
 
-def sync_time():
+def sync_time(force=False):
     """
-    Sincronizo la hora del sistema con un servidor NTP.
+    Sincronizo la hora del sistema con un servidor NTP una vez al día o al iniciar.
     
+    Args:
+        force (bool): Si es True, fuerza la sincronización ignorando el intervalo.
+
     Returns:
-        bool: True si fue exitoso, False en caso contrario
+        bool: True si fue exitoso o no se requería sincronizar, False en caso de error.
     """
+    global last_ntp_sync
+    current_time = time.time()
+
+    if not force and last_ntp_sync > 0 and (current_time - last_ntp_sync) < NTP_SYNC_INTERVAL:
+        return True
+
     if DEBUG:
         print("Sincronizando hora con servidor NTP...")
     
     try:
         ntptime.settime()
+        last_ntp_sync = time.time()
         if DEBUG:
             print("Hora sincronizada correctamente")
         return True
@@ -181,19 +206,22 @@ def loop():
         led_cycle_pin=env.LED_CYCLE_PIN if hasattr(env, 'LED_CYCLE_PIN') else None
     )
     
-    # Enciendo el LED integrado para indicar que el programa está ejecutándose
-    rpi_pico.led_on()
-    
-    # Enciendo el LED de encendido externo si está configurado
+    # Configuro monitoreo de batería externa si está definida en el entorno
+    if hasattr(env, 'BATTERY_ADC_PIN') and env.BATTERY_ADC_PIN is not None:
+        min_v = env.BATTERY_MIN_VOLTAGE if hasattr(env, 'BATTERY_MIN_VOLTAGE') else 2.5
+        max_v = env.BATTERY_MAX_VOLTAGE if hasattr(env, 'BATTERY_MAX_VOLTAGE') else 4.2
+        rpi_pico.set_external_battery(env.BATTERY_ADC_PIN, min_v, max_v)
+
+    # Enciendo el LED de encendido para indicar que el sistema está funcionando
     rpi_pico.led_power_on()
     
-    # Sincronizo la hora si el WiFi está conectado
-    if rpi_pico.wifi_is_connected():
-        sync_time()
+    # Sincronizo la hora al iniciar si el WiFi está conectado
+    if (UPLOAD_API or UPLOAD_HOME_ASSISTANT) and rpi_pico.wifi_is_connected():
+        sync_time(force=True)
     
-    # Inicializo la conexión a la API si está habilitada
+    # Inicializo la API si está habilitada
     api = None
-    if UPLOAD_API and API_URL and API_PATH and API_TOKEN:
+    if UPLOAD_API and API_URL and API_TOKEN:
         api = Api(
             controller=rpi_pico,
             url=API_URL,
@@ -211,7 +239,10 @@ def loop():
             url=HOME_ASSISTANT_URL,
             token=HOME_ASSISTANT_TOKEN,
             device_id=DEVICE_ID,
-            debug=DEBUG
+            debug=DEBUG,
+            delta_filtering=HA_DELTA_FILTERING,
+            heartbeat_interval=HA_HEARTBEAT_INTERVAL,
+            static_interval=HA_STATIC_INTERVAL
         )
     
     # Inicializo el controlador solar
@@ -219,7 +250,8 @@ def loop():
         device_id=DEVICE_ID,
         tx_pin=SERIAL_TX_PIN,
         rx_pin=SERIAL_RX_PIN,
-        debug=DEBUG
+        debug=DEBUG,
+        historical_interval=HISTORICAL_DATA_INTERVAL
     )
     
     # Contador de ciclos consecutivos sin conectividad WiFi
@@ -247,26 +279,17 @@ def loop():
                 else:
                     if offline_cycles > 0:
                         if DEBUG:
-                            print(f"WiFi restablecido tras {offline_cycles} ciclos offline. Sincronizando hora...")
-                        sync_time()
+                            print(f"WiFi restablecido tras {offline_cycles} ciclos offline.")
                         offline_cycles = 0
+
+                    # Sincronizo la hora periódicamente (1 vez al día o si aún no se había sincronizado)
+                    sync_time(force=False)
 
             # Enciendo el LED de ciclo para indicar que estoy leyendo datos
             rpi_pico.led_cycle_on()
             
-            # Leo datos del controlador solar
-            datas = solar_controller.get_all_datas()
-            info = solar_controller.get_all_controller_info_datas()
-            historical_today = solar_controller.get_today_historical_info_datas()
-            historical = solar_controller.get_historical_info_datas()
-            
-            # Combino todos los datos
-            # Uso dict.update() en lugar de ** unpacking para compatibilidad con MicroPython
-            params = {}
-            params.update(datas)
-            params.update(info)
-            params.update(historical_today)
-            params.update(historical)
+            # Leo datos del controlador solar de forma optimizada por bloques
+            params = solar_controller.get_all_datas_fast()
             
             # Apago el LED de ciclo una vez terminada la lectura
             rpi_pico.led_cycle_off()
@@ -309,12 +332,12 @@ def loop():
                     # Enciendo el LED de subida durante la comunicación con Home Assistant
                     rpi_pico.led_upload_on()
                     
-                    # Primero verifico si Home Assistant es accesible
+                    # Primero verifico si Home Assistant es accesible (usa caché de 5 min)
                     if home_assistant.check_connection():
-                        # Primero creo una entidad dedicada para el dispositivo
+                        # Primero creo una entidad dedicada para el dispositivo (usa intervalo de 1h)
                         device_created = home_assistant.create_device_entity()
                         
-                        # Verifico si el dispositivo existe en Home Assistant
+                        # Verifico si el dispositivo existe en Home Assistant (usa caché)
                         device_exists = home_assistant.verify_device_exists()
                         
                         if DEBUG:
@@ -323,19 +346,17 @@ def loop():
                             else:
                                 print("ADVERTENCIA: El dispositivo 'Controlador Solar Renogy Rover Li' NO existe en Home Assistant")
                                 print("Intentando crear el dispositivo nuevamente...")
-                                # Intento crear el dispositivo nuevamente si no existe
                                 device_created = home_assistant.create_device_entity()
-                                # Verifico nuevamente si el dispositivo existe
                                 device_exists = home_assistant.verify_device_exists()
                                 if not device_exists:
                                     print("ERROR: No se pudo crear el dispositivo en Home Assistant")
                         
                         # Solo actualizo los sensores si el dispositivo existe
                         if device_exists:
-                            # Actualizo datos del controlador solar
+                            # Actualizo datos del controlador solar (filtrado por delta)
                             success = home_assistant.update_solar_controller_data(params)
                             
-                            # Actualizo sensores del microcontrolador
+                            # Actualizo sensores del microcontrolador (filtrado por delta)
                             home_assistant.update_microcontroller_sensors()
                             
                             if DEBUG:
@@ -380,54 +401,24 @@ def loop():
             # Enciendo el LED integrado nuevamente al despertar
             rpi_pico.led_on()
             
-            # Aseguro que el LED de encendido siga encendido después de despertar
-            rpi_pico.led_power_on()
-            
         except Exception as e:
             if DEBUG:
-                print(f"Error en el bucle principal: {e}")
-                print(f"Tipo de excepción: {type(e).__name__}")
-                import sys
-                # Imprimo el traceback de la excepción si está disponible
-                if hasattr(sys, 'print_exception'):
-                    sys.print_exception(e)
+                print(f"Error en el ciclo principal: {e}")
             
-            # Aseguro que los LEDs de ciclo y subida estén apagados
+            # Aseguro que los LEDs de ciclo y subida estén apagados en caso de error
             rpi_pico.led_cycle_off()
             rpi_pico.led_upload_off()
             
-            # Parpadeo el LED integrado rápidamente para indicar error
+            # Parpadeo el LED integrado rápidamente para indicar un error
             for _ in range(5):
                 rpi_pico.led_on()
                 time.sleep(0.1)
                 rpi_pico.led_off()
                 time.sleep(0.1)
             
-            if DEBUG:
-                print(f"Ocurrió un error, pausando durante {SLEEP_TIME} segundos antes del próximo ciclo")
-            
-            # Uso pausa simple en lugar de light_sleep, incluso después de errores
-            sleep_pause(SLEEP_TIME)
-            
-            # Aseguro que el LED de encendido siga encendido después del error
-            rpi_pico.led_power_on()
+            # Pauso antes de reintentar
+            time.sleep(5)
 
-def main():
-    """
-    Punto de entrada principal de la aplicación.
-    """
-    print('Iniciando Aplicación de Monitoreo Renogy Rover Li')
-    
-    # Espero a que el hardware se inicialice
-    time.sleep(2)
-    
-    try:
-        loop()
-    except Exception as e:
-        print(f'Error crítico en la aplicación: {e}')
-        time.sleep(10)
-        # Reinicio el dispositivo en caso de error crítico
-        machine.reset()
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    loop()

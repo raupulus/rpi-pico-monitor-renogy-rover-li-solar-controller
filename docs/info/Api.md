@@ -5,7 +5,9 @@ Cliente HTTP REST para el envío de telemetría hacia la API V2 (módulo `/energ
 ## Qué hace y qué NO hace
 - **Qué hace**:
   - Construye el payload JSON unificado según el contrato API V2 mapeando las métricas leídas del Renogy Rover Li hacia los nombres nativos del modelo de energía.
-  - Genera el bloque `hardware_device_info` con la salud del microcontrolador (temperatura de CPU, uso de RAM, uptime, IP local, RSSI y batería externa ADC si existe).
+  - Envía la corriente neta (`battery_current`) y potencia neta (`battery_power`) de la batería calculadas en base a la corriente entregada por el regulador y el consumo en bornes Load.
+  - Inyecta en el bloque `hardware_device_info` la salud del microcontrolador (temperatura de CPU, uso de RAM, uptime, IP local, RSSI y batería externa ADC si existe).
+  - Incluye campos diagnósticos del regulador (`battery_charging_current`, `load_switch_status`, `fault_code`, `faults`) dentro de `hardware_device_info.extra` para respetar estrictamente el esquema raíz del contrato API V2.
   - Gestiona la autenticación mediante cabecera Bearer Token (`Authorization: Bearer <API_TOKEN>`) validada por Laravel Sanctum con la ability `energy:write`.
   - Normaliza la combinación de `API_URL` y `API_PATH` para evitar duplicación de prefijos (`/api` o `/api/v2`).
   - Implementa lógica de reintentos con retroceso exponencial ante errores temporales de red o timeouts.
@@ -28,8 +30,8 @@ Estructura del payload JSON enviado por `send_to_api`:
   "serial_number": "12345678",
   "battery_type": "lithium",
   "battery_voltage": 13.2,
-  "battery_current": null,
-  "battery_power": null,
+  "battery_current": 4.1,
+  "battery_power": 54.12,
   "battery_percentage": 95,
   "battery_temperature": 24.5,
   "temperature": 32.1,
@@ -74,7 +76,11 @@ Estructura del payload JSON enviado por `send_to_api`:
     "ip_local": "192.168.1.100",
     "extra": {
       "wifi_rssi": -65,
-      "wifi_ssid": "your_wifi_ssid"
+      "wifi_ssid": "your_wifi_ssid",
+      "battery_charging_current": 5.2,
+      "load_switch_status": 1,
+      "fault_code": 0,
+      "faults": ""
     }
   }
 }
@@ -84,7 +90,7 @@ Estructura del payload JSON enviado por `send_to_api`:
 1. **Envío de Telemetría (`send_to_api`)**:
    - Construye la URL normalizada mediante `_build_url()`.
    - Mapea las claves del diccionario `data` (provenientes del controlador solar) a la nomenclatura oficial de la API V2.
-   - Extrae el estado del microcontrolador mediante `_get_hardware_device_info()`.
+   - Extrae el estado del microcontrolador y campos adicionales en `extra` mediante `_get_hardware_device_info(data)`.
    - Inicia bucle de reintentos:
      - Realiza `urequests.post(url, headers=headers, json=payload)`.
      - Si el código de respuesta es 200 o 201, procesa el envelope JSON, imprime `warnings` si existen (en debug) y retorna `True`.
@@ -118,12 +124,14 @@ Variables en `env.py`:
 - **Ability del token**: Un token con la antigua ability `hardware:write` responderá con HTTP 403. Se requiere un token con `energy:write`.
 - **Fuga de sockets**: Es crítico invocar `response.close()` en el bloque `finally`, ya que el pool de sockets en el stack LWIP de MicroPython se agota rápidamente (`OSError: ENOMEM`).
 - **Campos opcionales**: El contrato espera valores `null` para campos no medidos; nunca forzar valores numéricos a `0` si no han sido medidos.
+- **Campos adicionales en `extra`**: Métricas adicionales que no figuran en el esquema raíz del contrato API V2 deben ubicarse en `hardware_device_info.extra` para evitar errores `422 Unprocessable Entity`.
+- **Valores simples en `extra`**: El validador de la API V2 exige que todos los valores dentro de `hardware_device_info.extra` sean estrictamente tipos simples (número, texto o booleano). Arrays o listas como `faults: []` producen error HTTP 422 ("Los valores de extra deben ser simples"); por ello, listas deben serializarse como texto (ej. `", ".join(faults)` o `""`), y valores `null` deben omitirse.
 
 ## Tests que lo cubren
-- Invocado periódicamente en el bucle principal de telemetría de `src/main.py`.
+- [`tests/test_battery_calculation.py`](file:///Users/fryntiz/git/rpi-pico-monitor-renogy-rover-li-solar-controller/tests/test_battery_calculation.py): Valida la estructura del payload API V2, la inyección de telemetría no perteneciente al contrato en `extra` y la sanitización a tipos simples (número, texto o booleano) sin listas ni valores nulos.
 
 ## Pendiente real
 - Ninguno.
 
 ---
-> Creado: 2026-09-06 · Última revisión: 2026-09-06
+> Raúl Caro Pastorino · <public@raupulus.dev> · [raupulus.dev](https://raupulus.dev)

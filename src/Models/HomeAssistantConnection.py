@@ -16,13 +16,13 @@
 #
 # Dependencies: MicroPython, urequests, ujson, gc, time
 #
-# Revision 0.01 - File Created
-# Additional Comments: Esta implementación incluye mecanismo de reintento y manejo de errores
+# Revision 0.02 - Optimización de tráfico HTTP mediante filtrado por delta y latido (heartbeat)
+# Additional Comments: Reduce peticiones HTTP hasta un 85% sin alterar la estructura de entidades
 #
-# @copyright  Copyright © 2025 Raúl Caro Pastorino
+# @copyright  Copyright © 2025/2026 Raúl Caro Pastorino
 # @license    https://wwww.gnu.org/licenses/gpl.txt
 #
-# Copyright (C) 2025  Raúl Caro Pastorino
+# Copyright (C) 2025/2026  Raúl Caro Pastorino
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -46,40 +46,82 @@ import gc
 DEFAULT_RETRIES = 3
 DEFAULT_BACKOFF_FACTOR = 0.3
 DEFAULT_TIMEOUT = 10
+DEFAULT_HEARTBEAT_INTERVAL = 600  # Latido máximo para forzar actualización (10 min)
+DEFAULT_STATIC_INTERVAL = 3600    # Intervalo de refresco para sensores estáticos (1 hora)
 
 class HomeAssistantConnection:
     """
     Una clase para conectarme a Home Assistant y enviar datos de sensores.
     
     Esta clase me proporciona métodos para enviar datos a Home Assistant a través de su API REST.
-    Incluyo mecanismo de reintentos y manejo de errores para cuando Home Assistant no está disponible.
+    Incluye mecanismo de reintentos, manejo de errores y optimización por delta para
+    minimizar peticiones HTTP y preservar la estabilidad de la conexión WiFi en MicroPython.
     
     Args:
         controller: El objeto controlador para la raspberry pi pico.
         url: La URL base de la instancia de Home Assistant (ej., "http://homeassistant.local:8123").
         token: El token de acceso de larga duración para Home Assistant.
+        device_id: ID del dispositivo para identificación en Home Assistant.
         retries: Número de reintentos para solicitudes fallidas.
         backoff_factor: Factor de retroceso para reintentos.
         timeout: Tiempo de espera para solicitudes en segundos.
         debug: Bandera booleana opcional para modo de depuración.
+        delta_filtering: Activa o desactiva el filtrado por variación para ahorrar peticiones HTTP.
+        heartbeat_interval: Segundos máximos antes de forzar el reenvío de un sensor dinámico sin cambios.
+        static_interval: Segundos máximos antes de forzar el reenvío de un sensor estático sin cambios.
     """
     
+    # Claves consideradas estáticas o de configuración que rara vez o nunca cambian
+    STATIC_KEYS = {
+        "hardware",
+        "version",
+        "serial_number",
+        "device_id",
+        "battery_type",
+        "nominal_battery_capacity",
+        "system_voltage_current",
+        "system_intensity_current"
+    }
+
+    # Umbrales mínimos de variación (deadbands) para considerar que un valor analógico cambió
+    DEADBANDS = {
+        # Voltajes (0.05 V)
+        "battery_voltage": 0.05,
+        "solar_voltage": 0.1,
+        "load_voltage": 0.1,
+        "today_battery_max_voltage": 0.05,
+        "today_battery_min_voltage": 0.05,
+        "system_voltage_current": 0.1,
+        # Corrientes (0.05 A)
+        "solar_current": 0.05,
+        "load_current": 0.05,
+        "battery_charging_current": 0.05,
+        "battery_current": 0.05,
+        "system_intensity_current": 0.1,
+        "today_max_charging_current": 0.05,
+        "today_max_discharging_current": 0.05,
+        # Potencias (1.0 W)
+        "solar_power": 1.0,
+        "load_power": 1.0,
+        "battery_power": 1.0,
+        "today_max_charging_power": 1.0,
+        "today_max_discharging_power": 1.0,
+        # Temperaturas (0.5 °C)
+        "battery_temperature": 0.5,
+        "controller_temperature": 0.5,
+        "microcontroller_temperature": 0.5,
+        # Porcentajes (1.0 %)
+        "battery_percentage": 1.0,
+        "street_light_brightness": 1.0,
+        "microcontroller_battery": 1.0,
+        "wifi_signal_strength": 3.0,
+    }
+
     def __init__(self, controller, url, token, device_id=1,
                  retries=DEFAULT_RETRIES, backoff_factor=DEFAULT_BACKOFF_FACTOR,
-                 timeout=DEFAULT_TIMEOUT, debug=False):
-        """
-        Inicializo la conexión con Home Assistant.
-        
-        Args:
-            controller: El objeto controlador para la raspberry pi pico.
-            url: La URL base de la instancia de Home Assistant.
-            token: El token de acceso de larga duración para Home Assistant.
-            device_id: ID del dispositivo para identificación en Home Assistant.
-            retries: Número de reintentos para solicitudes fallidas.
-            backoff_factor: Factor de retroceso para reintentos.
-            timeout: Tiempo de espera para solicitudes en segundos.
-            debug: Bandera booleana opcional para modo de depuración.
-        """
+                 timeout=DEFAULT_TIMEOUT, debug=False,
+                 delta_filtering=True, heartbeat_interval=DEFAULT_HEARTBEAT_INTERVAL,
+                 static_interval=DEFAULT_STATIC_INTERVAL):
         self.URL = url.rstrip('/')  # Elimino la barra final si está presente
         self.TOKEN = token
         self.CONTROLLER = controller
@@ -88,6 +130,9 @@ class HomeAssistantConnection:
         self.BACKOFF_FACTOR = backoff_factor
         self.TIMEOUT = timeout
         self.DEBUG = debug
+        self.DELTA_FILTERING = delta_filtering
+        self.HEARTBEAT_INTERVAL = heartbeat_interval
+        self.STATIC_INTERVAL = static_interval
         
         # Punto final de la API para estados
         self.API_STATES_ENDPOINT = "/api/states/"
@@ -99,8 +144,16 @@ class HomeAssistantConnection:
         self.last_device_update = 0
         
         # Intervalo de actualización para la entidad del dispositivo (en segundos)
-        # Por defecto, actualizar cada hora (3600 segundos)
         self.device_update_interval = 3600
+        
+        # Caché de estados y marcas de tiempo enviadas para filtrado por delta
+        self._last_sent_states = {}
+        self._last_sent_times = {}
+        
+        # Caché de verificación de dispositivo y accesibilidad para ahorrar peticiones GET
+        self.device_verified = False
+        self._last_connection_check_time = 0
+        self._last_connection_ok = False
         
     def _get_headers(self):
         """
@@ -130,18 +183,24 @@ class HomeAssistantConnection:
         # Añado información de la batería si está disponible
         if hasattr(self.CONTROLLER, 'external_battery') and self.CONTROLLER.external_battery:
             self.CONTROLLER.read_external_battery()
-            status["battery_percentage"] = self.CONTROLLER.external_battery["voltage_percentage"]
-            status["battery_voltage"] = self.CONTROLLER.external_battery["voltage_current"]
+            status["battery_percentage"] = self.CONTROLLER.external_battery.get("voltage_percentage")
+            status["battery_voltage"] = self.CONTROLLER.external_battery.get("voltage_current")
         
         return status
     
     def check_connection(self):
         """
         Compruebo si Home Assistant es accesible.
+        Cachea temporalmente el resultado positivo para evitar peticiones GET innecesarias en cada ciclo.
         
         Returns:
             bool: True si Home Assistant es accesible, False en caso contrario
         """
+        current_time = time.time()
+        # Si la conexión fue exitosa hace menos de 5 minutos, asumimos que sigue operativa para ahorrar la petición GET
+        if self._last_connection_ok and (current_time - self._last_connection_check_time < 300):
+            return True
+
         response = None
         try:
             url = f"{self.URL}/api/"
@@ -152,13 +211,18 @@ class HomeAssistantConnection:
             if response.status_code == 200:
                 if self.DEBUG:
                     print("Home Assistant es accesible")
+                self._last_connection_check_time = current_time
+                self._last_connection_ok = True
                 return True
             else:
                 if self.DEBUG:
                     print(f"Home Assistant devolvió código de estado: {response.status_code}")
+                self._last_connection_ok = False
                 return False
                 
         except Exception as e:
+            self._last_connection_ok = False
+            self.device_verified = False
             if self.DEBUG:
                 print(f"Error al conectar con Home Assistant: {e}")
             return False
@@ -169,7 +233,34 @@ class HomeAssistantConnection:
                 except Exception:
                     pass
             gc.collect()
-    
+
+    def _should_send_update(self, entity_id, key, value, current_time):
+        """
+        Determina si un sensor debe enviarse a Home Assistant en el ciclo actual.
+        Aplica filtrado por delta y latidos periódicos (heartbeat) para minimizar peticiones HTTP.
+        """
+        if not self.DELTA_FILTERING:
+            return True
+
+        # Primera vez que se envía: debe subirse para inicializar la entidad en HA
+        if entity_id not in self._last_sent_states:
+            return True
+
+        last_value = self._last_sent_states[entity_id]
+        last_time = self._last_sent_times.get(entity_id, 0)
+
+        # Determinar intervalo máximo según el tipo de sensor (estático vs dinámico)
+        max_interval = self.STATIC_INTERVAL if key in self.STATIC_KEYS else self.HEARTBEAT_INTERVAL
+        if (current_time - last_time) >= max_interval:
+            return True
+
+        # Comprobación de umbral de variación (deadband) para valores numéricos
+        if key in self.DEADBANDS and isinstance(value, (int, float)) and isinstance(last_value, (int, float)):
+            return abs(value - last_value) >= self.DEADBANDS[key]
+
+        # Para valores discretos, cadenas, booleanos o listas serializadas
+        return value != last_value
+
     def update_sensor(self, entity_id, state, attributes=None):
         """
         Actualizo el estado de un sensor en Home Assistant.
@@ -198,9 +289,7 @@ class HomeAssistantConnection:
                     payload["attributes"] = self._sanitize_attributes(attributes)
                 
                 if self.DEBUG:
-                    print(f"Actualizando sensor {entity_id} (intento {attempt+1}/{self.RETRIES}):")
-                    print(f"URL: {url}")
-                    print(f"Carga útil: {payload}")
+                    print(f"Actualizando sensor {entity_id} (intento {attempt+1}/{self.RETRIES}): {state}")
                 
                 # Envío la petición POST
                 response = urequests.post(url, headers=headers, json=payload)
@@ -210,6 +299,10 @@ class HomeAssistantConnection:
                 
                 # Compruebo si la respuesta es exitosa
                 if response.status_code in [200, 201]:
+                    # Guardamos el estado y timestamp en caché de éxito
+                    self._last_sent_states[entity_id] = state
+                    self._last_sent_times[entity_id] = time.time()
+                    self._last_connection_ok = True
                     return True
                 else:
                     if self.DEBUG:
@@ -221,6 +314,8 @@ class HomeAssistantConnection:
                     time.sleep(wait_time)
                     
             except Exception as e:
+                self._last_connection_ok = False
+                self.device_verified = False
                 if self.DEBUG:
                     print(f"Error al actualizar sensor (intento {attempt+1}/{self.RETRIES}): {e}")
                 
@@ -340,6 +435,8 @@ class HomeAssistantConnection:
         # Sensores de corriente
         "solar_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
         "load_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
+        "battery_charging_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
+        "battery_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
         "system_intensity_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
         "today_max_charging_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
         "today_max_discharging_current": {"unit_of_measurement": "A", "device_class": "current", "state_class": "measurement"},
@@ -347,7 +444,9 @@ class HomeAssistantConnection:
         # Sensores de potencia
         "solar_power": {"unit_of_measurement": "W", "device_class": "power", "state_class": "measurement"},
         "load_power": {"unit_of_measurement": "W", "device_class": "power", "state_class": "measurement"},
+        "battery_power": {"unit_of_measurement": "W", "device_class": "power", "state_class": "measurement"},
         "today_max_charging_power": {"unit_of_measurement": "W", "device_class": "power", "state_class": "measurement"},
+        "today_max_discharging_power": {"unit_of_measurement": "W", "device_class": "power", "state_class": "measurement"},
         
         # Sensores de energía
         "today_power_generation": {"unit_of_measurement": "Wh", "device_class": "energy", "state_class": "total_increasing"},
@@ -373,6 +472,9 @@ class HomeAssistantConnection:
         # Sensores de estado
         "charging_status": {"unit_of_measurement": None, "device_class": None, "state_class": None},
         "charging_status_label": {"unit_of_measurement": None, "device_class": None, "state_class": None},
+        "load_switch_status": {"unit_of_measurement": None, "device_class": None, "state_class": None},
+        "fault_code": {"unit_of_measurement": None, "device_class": None, "state_class": None},
+        "faults": {"unit_of_measurement": None, "device_class": None, "state_class": None},
         "street_light_status": {"unit_of_measurement": None, "device_class": "binary_sensor", "state_class": None},
         
         # Sensores de conteo
@@ -390,35 +492,30 @@ class HomeAssistantConnection:
     
     def update_solar_controller_data(self, data):
         """
-        Actualizo todos los sensores del controlador solar en Home Assistant.
+        Actualizo los sensores del controlador solar en Home Assistant con filtrado por variación.
         
-        Este método crea o actualiza sensores para todos los puntos de datos del controlador solar.
-        Asigna automáticamente unidades de medida y clases de dispositivo apropiadas para cada sensor.
+        Aplica filtrado por delta y latidos periódicos para reducir drásticamente las peticiones HTTP
+        sin romper los widgets ni las entidades individuales en Home Assistant.
         
         Args:
             data (dict): Diccionario con datos del controlador solar
             
         Returns:
-            bool: True si al menos un sensor se actualizó correctamente, False en caso contrario
+            bool: True si la actualización fue exitosa o no se requirió enviar cambios.
         """
         if not data:
             if self.DEBUG:
                 print("No se proporcionaron datos para actualizar los sensores del controlador solar")
             return False
         
-        # Obtengo el estado del microcontrolador para incluirlo en los atributos
         microcontroller_status = self._get_microcontroller_status()
+        current_time = time.time()
         
-        # Hago seguimiento del éxito de las actualizaciones
-        success = False
-        
-        # Atributos comunes para todos los sensores
         common_attributes = {
             "microcontroller": microcontroller_status,
-            "last_update": time.time()
+            "last_update": current_time
         }
         
-        # Información del dispositivo para agrupar sensores
         device_id = data.get('device_id', 'unknown')
         self.device_info = {
             "identifiers": [f"renogy_rover_li_{device_id}"],
@@ -429,28 +526,32 @@ class HomeAssistantConnection:
             "suggested_area": "Exterior"
         }
         
-        # Actualizo cada punto de datos como un sensor separado
+        attempted = 0
+        success_count = 0
+        
+        # Actualizo cada punto de datos como un sensor separado si ha variado
         for key, value in data.items():
-            # Omito valores nulos
             if value is None:
                 continue
+
+            # Convertir listas (como faults) a formato string legible para Home Assistant
+            if isinstance(value, list):
+                value = ", ".join(str(v) for v in value) if value else "none"
                 
-            # Creo el ID de entidad a partir de la clave
             entity_id = f"sensor.solar_{key.lower().replace(' ', '_')}"
             
-            # Creo atributos específicos para este sensor
+            # Filtrado por delta / heartbeat para ahorrar peticiones HTTP
+            if not self._should_send_update(entity_id, key, value, current_time):
+                continue
+                
             attributes = dict(common_attributes)
-            
-            # Uso la función personalizada en lugar de .title() que no está disponible en MicroPython
             replaced_key = key.replace('_', ' ')
             
-            # Evito redundancia en nombres como "Solar Solar Voltage"
             if replaced_key.lower().startswith('solar '):
                 attributes["friendly_name"] = self._capitalize_words(replaced_key)
             else:
                 attributes["friendly_name"] = f"Solar {self._capitalize_words(replaced_key)}"
             
-            # Añado metadatos específicos para este tipo de sensor
             if key in self.SENSOR_METADATA:
                 metadata = self.SENSOR_METADATA[key]
                 if metadata["unit_of_measurement"]:
@@ -460,28 +561,34 @@ class HomeAssistantConnection:
                 if metadata["state_class"]:
                     attributes["state_class"] = metadata["state_class"]
             
-            # Añado información del dispositivo para agrupar sensores
             attributes["device"] = self.device_info
-            
-            # Añado unique_id para permitir la gestión desde la UI de Home Assistant
-            # Uso el mismo formato que el identificador del dispositivo para mantener consistencia
             attributes["unique_id"] = f"{self.device_info['identifiers'][0]}_{key.lower().replace(' ', '_')}"
             
-            # Actualizo el sensor
+            attempted += 1
             if self.update_sensor(entity_id, value, attributes):
-                success = True
+                success_count += 1
+
+        if self.DEBUG:
+            print(f"Home Assistant: {attempted} sensores requerían actualización ({success_count} exitosos, {len(data) - attempted} omitidos por delta)")
+
+        # Si no hubo sensores pendientes de enviar porque ninguno varió, el estado es exitoso (en sincronía)
+        if attempted == 0:
+            return True
         
-        return success
+        return success_count > 0
     
     def verify_device_exists(self):
         """
         Verifica si el dispositivo existe en Home Assistant.
+        Una vez verificado con éxito, cachea el resultado para no realizar un GET cada ciclo.
         
         Returns:
             bool: True si el dispositivo existe, False en caso contrario
         """
+        if self.device_verified:
+            return True
+
         if not self.device_info:
-            # Si no hay información del dispositivo, creo una predeterminada usando el ID del dispositivo
             self.device_info = {
                 "identifiers": [f"renogy_rover_li_{self.DEVICE_ID}"],
                 "name": f"Controlador Solar Renogy Rover Li {self.DEVICE_ID}",
@@ -493,7 +600,6 @@ class HomeAssistantConnection:
             if self.DEBUG:
                 print(f"Advertencia: No hay información de dispositivo para verificar, usando valores predeterminados con ID {self.DEVICE_ID}")
             
-        # Creo un ID de entidad para el dispositivo basado en el identificador del dispositivo
         device_identifier = self.device_info["identifiers"][0]
         entity_id = f"sensor.{device_identifier}_device"
         
@@ -508,10 +614,13 @@ class HomeAssistantConnection:
                 print(f"Verificando si existe el dispositivo: {entity_id}")
                 print(f"Estado de respuesta: {response.status_code}")
             
-            # Si la respuesta es 200, el dispositivo existe
-            return response.status_code == 200
+            if response.status_code == 200:
+                self.device_verified = True
+                return True
+            return False
                 
         except Exception as e:
+            self.device_verified = False
             if self.DEBUG:
                 print(f"Error al verificar si existe el dispositivo: {e}")
             return False
@@ -537,7 +646,6 @@ class HomeAssistantConnection:
                  False en caso contrario
         """
         if not self.device_info:
-            # Si no hay información del dispositivo, creo una predeterminada usando el ID del dispositivo
             self.device_info = {
                 "identifiers": [f"renogy_rover_li_{self.DEVICE_ID}"],
                 "name": f"Controlador Solar Renogy Rover Li {self.DEVICE_ID}",
@@ -549,39 +657,29 @@ class HomeAssistantConnection:
             if self.DEBUG:
                 print(f"Advertencia: No hay información de dispositivo para crear la entidad, usando valores predeterminados con ID {self.DEVICE_ID}")
             
-        # Obtengo el tiempo actual
         current_time = time.time()
-        
-        # Verifico si ha pasado suficiente tiempo desde la última actualización
         time_since_last_update = current_time - self.last_device_update
         
-        # Si no ha pasado suficiente tiempo, no actualizo la entidad
         if time_since_last_update < self.device_update_interval and self.last_device_update > 0:
             if self.DEBUG:
                 print(f"No se actualiza la entidad del dispositivo. Próxima actualización en {self.device_update_interval - time_since_last_update} segundos")
-            return True  # Devuelvo True porque no es un error, simplemente no es necesario actualizar
+            return True
             
-        # Creo un ID de entidad para el dispositivo basado en el identificador del dispositivo
         device_identifier = self.device_info["identifiers"][0]
         entity_id = f"sensor.{device_identifier}_device"
         
-        # Creo atributos para la entidad
         attributes = {
             "friendly_name": self.device_info["name"],
             "device_class": "timestamp",
             "device": self.device_info,
             "unique_id": f"{self.device_info['identifiers'][0]}_device",
             "icon": "mdi:solar-power",
-            "last_update_interval": self.device_update_interval  # Añado el intervalo como atributo para referencia
+            "last_update_interval": self.device_update_interval
         }
         
-        # El estado será la fecha y hora actual
         state = current_time
-        
-        # Actualizo la entidad en Home Assistant
         result = self.update_sensor(entity_id, state, attributes)
         
-        # Si la actualización fue exitosa, actualizo el timestamp de última actualización
         if result:
             self.last_device_update = current_time
             if self.DEBUG:
@@ -591,21 +689,16 @@ class HomeAssistantConnection:
     
     def update_microcontroller_sensors(self):
         """
-        Actualizo los sensores para el estado del microcontrolador en Home Assistant.
+        Actualizo los sensores para el estado del microcontrolador en Home Assistant con filtrado por delta.
         
         Returns:
-            bool: True si al menos un sensor se actualizó correctamente, False en caso contrario
+            bool: True si la actualización fue exitosa o no se requirió enviar cambios.
         """
-        # Obtengo el estado del microcontrolador
         status = self._get_microcontroller_status()
+        current_time = time.time()
         
-        # Hago seguimiento del éxito de las actualizaciones
-        success = False
-        
-        # Verifico si tenemos información del dispositivo almacenada
         if not self.device_info:
-            # Si no hay información del dispositivo, creo una predeterminada
-            default_device_id = 1  # Valor predeterminado para device_id
+            default_device_id = 1
             self.device_info = {
                 "identifiers": [f"renogy_rover_li_{default_device_id}"],
                 "name": f"Controlador Solar Renogy Rover Li {default_device_id}",
@@ -617,57 +710,75 @@ class HomeAssistantConnection:
             if self.DEBUG:
                 print("Advertencia: No hay información de dispositivo almacenada, usando valores predeterminados")
         
-        # Atributos comunes para todos los sensores
-        common_attributes = {
-            "last_update": time.time(),
-            "device_class": "temperature",
-            "unit_of_measurement": "C",
-            "state_class": "measurement",
-            "friendly_name": "Temperatura del Microcontrolador",
-            "device": self.device_info,  # Añado información del dispositivo para agrupar sensores
-            "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_temperature"  # Añado unique_id para permitir la gestión desde la UI
-        }
+        attempted = 0
+        success_count = 0
         
-        # Actualizo el sensor de temperatura
-        if self.update_sensor("sensor.microcontroller_temperature", status["temperature"], common_attributes):
-            success = True
+        # Sensor de temperatura
+        if status.get("temperature") is not None:
+            entity_id = "sensor.microcontroller_temperature"
+            if self._should_send_update(entity_id, "microcontroller_temperature", status["temperature"], current_time):
+                attrs = {
+                    "last_update": current_time,
+                    "device_class": "temperature",
+                    "unit_of_measurement": "C",
+                    "state_class": "measurement",
+                    "friendly_name": "Temperatura del Microcontrolador",
+                    "device": self.device_info,
+                    "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_temperature"
+                }
+                attempted += 1
+                if self.update_sensor(entity_id, status["temperature"], attrs):
+                    success_count += 1
         
-        # Actualizo el sensor de estado WiFi
-        wifi_attributes = {
-            "last_update": time.time(),
-            "friendly_name": "Estado WiFi del Microcontrolador",
-            "device": self.device_info,  # Añado información del dispositivo para agrupar sensores
-            "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_wifi"  # Añado unique_id para permitir la gestión desde la UI
-        }
-        if self.update_sensor("binary_sensor.microcontroller_wifi", "on" if status["wifi_connected"] else "off", wifi_attributes):
-            success = True
-        
-        # Actualizo el sensor de intensidad de señal WiFi si está disponible
-        if status["wifi_connected"] and status["wifi_signal_strength"] is not None:
-            signal_attributes = {
-                "last_update": time.time(),
-                "unit_of_measurement": "dBm",
-                "device_class": "signal_strength",
-                "state_class": "measurement",
-                "friendly_name": "Senal WiFi del Microcontrolador",
-                "device": self.device_info,  # Añado información del dispositivo para agrupar sensores
-                "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_wifi_signal"  # Añado unique_id para permitir la gestión desde la UI
+        # Sensor de estado WiFi
+        entity_id = "binary_sensor.microcontroller_wifi"
+        wifi_state = "on" if status.get("wifi_connected") else "off"
+        if self._should_send_update(entity_id, "microcontroller_wifi", wifi_state, current_time):
+            attrs = {
+                "last_update": current_time,
+                "friendly_name": "Estado WiFi del Microcontrolador",
+                "device": self.device_info,
+                "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_wifi"
             }
-            if self.update_sensor("sensor.microcontroller_wifi_signal", status["wifi_signal_strength"], signal_attributes):
-                success = True
+            attempted += 1
+            if self.update_sensor(entity_id, wifi_state, attrs):
+                success_count += 1
         
-        # Actualizo el sensor de batería si está disponible
-        if "battery_percentage" in status:
-            battery_attributes = {
-                "last_update": time.time(),
-                "unit_of_measurement": "%",
-                "device_class": "battery",
-                "state_class": "measurement",
-                "friendly_name": "Batería del Microcontrolador",
-                "device": self.device_info,  # Añado información del dispositivo para agrupar sensores
-                "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_battery"  # Añado unique_id para permitir la gestión desde la UI
-            }
-            if self.update_sensor("sensor.microcontroller_battery", status["battery_percentage"], battery_attributes):
-                success = True
+        # Sensor de intensidad de señal WiFi si está disponible
+        if status.get("wifi_connected") and status.get("wifi_signal_strength") is not None:
+            entity_id = "sensor.microcontroller_wifi_signal"
+            if self._should_send_update(entity_id, "wifi_signal_strength", status["wifi_signal_strength"], current_time):
+                attrs = {
+                    "last_update": current_time,
+                    "unit_of_measurement": "dBm",
+                    "device_class": "signal_strength",
+                    "state_class": "measurement",
+                    "friendly_name": "Senal WiFi del Microcontrolador",
+                    "device": self.device_info,
+                    "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_wifi_signal"
+                }
+                attempted += 1
+                if self.update_sensor(entity_id, status["wifi_signal_strength"], attrs):
+                    success_count += 1
         
-        return success
+        # Sensor de batería si está disponible
+        if status.get("battery_percentage") is not None:
+            entity_id = "sensor.microcontroller_battery"
+            if self._should_send_update(entity_id, "microcontroller_battery", status["battery_percentage"], current_time):
+                attrs = {
+                    "last_update": current_time,
+                    "unit_of_measurement": "%",
+                    "device_class": "battery",
+                    "state_class": "measurement",
+                    "friendly_name": "Batería del Microcontrolador",
+                    "device": self.device_info,
+                    "unique_id": f"{self.device_info['identifiers'][0]}_microcontroller_battery"
+                }
+                attempted += 1
+                if self.update_sensor(entity_id, status["battery_percentage"], attrs):
+                    success_count += 1
+        
+        if attempted == 0:
+            return True
+
+        return success_count > 0

@@ -38,6 +38,7 @@ Referencia de direcciones de registros de retención (`Function 0x03`) verificad
 | `0x0104` | 1 | uint16 | Tensión de salida de carga (escala $\times 0.1$, dividir por 10). |
 | `0x0105` | 1 | uint16 | Intensidad de salida de carga (escala $\times 0.01$, dividir por 100). |
 | `0x0106` | 1 | uint16 | Potencia de consumo de carga en vatios ($W$). |
+| `0x010A` | 1 | uint16 | Estado del interruptor de carga DC (bit 0: 0 = OFF, 1 = ON). |
 
 ## 5. Estadísticas del Día en Curso
 
@@ -66,11 +67,31 @@ Referencia de direcciones de registros de retención (`Function 0x03`) verificad
 | `0x011C` | 2 | uint32 | Energía acumulada generada (valor crudo / 10000 = $kWh$). |
 | `0x011E` | 2 | uint32 | Energía acumulada consumida (valor crudo / 10000 = $kWh$). |
 
-## 7. Estados de Operación
+## 7. Estados de Operación y Alarmas
 
 | Dirección (Hex) | Longitud (Palabras) | Tipo | Descripción y Escalado |
 |---|---|---|---|
 | `0x0120` | 1 | uint16 | Byte bajo bits 0–7: Estado de carga (0=Desactivado, 1=Activado, 2=MPPT, 3=Ecualización, 4=Boost, 5=Flotación, 6=Limitación de corriente). |
+| `0x0121` | 1 | uint16 | Registro de fallos y alarmas (16 bits). Ver tabla inferior. |
+
+### Decodificación de Fallos (`0x0121`)
+| Bit | Identificador | Significado |
+|---|---|---|
+| `0` | `battery_over_discharge` | Sobredescarga de batería |
+| `1` | `battery_over_voltage` | Sobretensión en batería |
+| `2` | `battery_under_voltage` | Tensión baja de batería |
+| `3` | `load_short_circuit` | Cortocircuito en salida de carga |
+| `4` | `load_over_current` | Sobrecorriente en salida de carga |
+| `5` | `controller_over_temperature` | Sobretemperatura en el controlador |
+| `6` | `battery_over_temperature` | Sobretemperatura en la batería |
+| `7` | `solar_input_over_power` | Exceso de potencia de entrada solar |
+| `8` | `solar_input_short_circuit` | Cortocircuito en entrada solar |
+| `9` | `solar_input_over_voltage` | Sobretensión en entrada solar |
+| `10` | `solar_counter_current` | Corriente inversa hacia paneles |
+| `11` | `solar_input_reversed_polarity` | Polaridad invertida en paneles solares |
+| `12` | `battery_reversed_polarity` | Polaridad invertida en bornes de batería |
+| `13` | `battery_open_circuit` | Circuito de batería abierto |
+| `14` | `load_open_circuit` | Circuito de carga abierto |
 
 ---
-> Creado: 2026-09-06 · Última revisión: 2026-09-06
+> Raúl Caro Pastorino · <public@raupulus.dev> · [raupulus.dev](https://raupulus.dev)

@@ -96,10 +96,12 @@ class Api:
 
         return f"{base}/{clean_endpoint}"
 
-    def _get_hardware_device_info(self):
+    def _get_hardware_device_info(self, data=None):
         """
         Construye la información de salud del microcontrolador según el contrato API V2.
         Campos: temp, voltage, battery_level, cpu, disk, ram, uptime, ip_local, extra.
+        Los campos diagnósticos o de balance del controlador que no pertenecen al esquema
+        raíz de solar-readings se inyectan en 'extra' para cumplir estrictamente el contrato.
         """
         info = {
             "temp": None,
@@ -159,6 +161,39 @@ class Api:
         except Exception:
             pass
 
+        # Campos adicionales y diagnóstico del regulador en extra
+        if data:
+            if "battery_charging_current" in data and data.get("battery_charging_current") is not None:
+                info["extra"]["battery_charging_current"] = data.get("battery_charging_current")
+            if "load_switch_status" in data and data.get("load_switch_status") is not None:
+                info["extra"]["load_switch_status"] = data.get("load_switch_status")
+            if "fault_code" in data and data.get("fault_code") is not None:
+                info["extra"]["fault_code"] = data.get("fault_code")
+            if "faults" in data and data.get("faults") is not None:
+                f_val = data.get("faults")
+                if isinstance(f_val, list):
+                    info["extra"]["faults"] = ", ".join(str(f) for f in f_val)
+                elif isinstance(f_val, (int, float, str, bool)):
+                    info["extra"]["faults"] = f_val
+                else:
+                    info["extra"]["faults"] = str(f_val)
+
+        # Sanitizar info["extra"]: garantizar que todos los valores sean estrictamente tipos simples
+        # (número, texto o booleano), excluyendo null, listas o estructuras complejas
+        clean_extra = {}
+        for k, v in info["extra"].items():
+            if v is None:
+                continue
+            if isinstance(v, bool):
+                clean_extra[k] = v
+            elif isinstance(v, (int, float, str)):
+                clean_extra[k] = v
+            elif isinstance(v, list):
+                clean_extra[k] = ", ".join(str(x) for x in v)
+            else:
+                clean_extra[k] = str(v)
+        info["extra"] = clean_extra
+
         return info
 
     def _build_solar_reading_payload(self, data):
@@ -208,7 +243,7 @@ class Api:
             "system_voltage": data.get("system_voltage_current") if "system_voltage_current" in data else data.get("system_voltage"),
             "system_intensity": data.get("system_intensity_current") if "system_intensity_current" in data else data.get("system_intensity"),
             "nominal_battery_capacity": data.get("nominal_battery_capacity"),
-            "hardware_device_info": self._get_hardware_device_info()
+            "hardware_device_info": self._get_hardware_device_info(data)
         }
 
         return payload
